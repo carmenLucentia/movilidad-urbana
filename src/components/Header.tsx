@@ -27,9 +27,12 @@ const Header = () => {
       </nav>
 
       <div className="flex items-center gap-4">
-        <span className="text-sm text-muted-foreground">
+        <button
+          onClick={() => navigate("/perfil")}
+          className="text-sm text-muted-foreground hover:text-accent transition-colors"
+        >
           Hola, <span className="font-medium text-foreground">{user}</span>
-        </span>
+        </button>
         <button
           onClick={handleLogout}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive hover:opacity-80 transition-opacity duration-150"
