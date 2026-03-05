@@ -88,6 +88,9 @@ const ProfilePage = () => {
           </button>
 
           <h1 className="text-xl font-bold text-foreground">Perfil de usuario</h1>
+          </button>
+
+          <h1 className="text-xl font-bold text-foreground">Perfil de usuario</h1>
 
           {/* Avatar */}
           <div className="flex justify-center">
