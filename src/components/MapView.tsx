@@ -1,5 +1,4 @@
-import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Polygon, useMapEvents } from "react-leaflet";
+import { useEffect, useRef, useCallback } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Marker as MarkerType } from "./MarkersPanel";
@@ -23,62 +22,73 @@ interface Props {
   onMapClick: (lat: number, lng: number) => void;
 }
 
-function ClickHandler({ onClick }: { onClick: (lat: number, lng: number) => void }) {
-  useMapEvents({
-    click(e) {
-      onClick(e.latlng.lat, e.latlng.lng);
-    },
-  });
-  return null;
-}
-
 const MapView = ({ markers, route, zones, tempZone, isDrawingZone, onMapClick }: Props) => {
-  const routePositions =
-    route && markers[route.origin] && markers[route.destination]
-      ? [
-          [markers[route.origin].lat, markers[route.origin].lng] as [number, number],
-          [markers[route.destination].lat, markers[route.destination].lng] as [number, number],
-        ]
-      : null;
+  const mapRef = useRef<L.Map | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const layersRef = useRef<L.LayerGroup>(L.layerGroup());
 
-  return (
-    <MapContainer
-      center={[38.3452, -0.481]}
-      zoom={13}
-      className="w-full h-full min-h-[400px]"
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <ClickHandler onClick={onMapClick} />
+  // Initialize map once
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
 
-      {markers.map((m, i) => (
-        <Marker key={i} position={[m.lat, m.lng]}>
-          <Popup>Punto {i + 1}</Popup>
-        </Marker>
-      ))}
+    const map = L.map(containerRef.current).setView([38.3452, -0.481], 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map);
 
-      {routePositions && (
-        <Polyline positions={routePositions} pathOptions={{ color: "#06B6D4", weight: 4 }} />
-      )}
+    layersRef.current.addTo(map);
+    mapRef.current = map;
 
-      {zones.map((z, i) => (
-        <Polygon
-          key={i}
-          positions={z.points.map((p) => [p.lat, p.lng] as [number, number])}
-          pathOptions={{ color: "#0B1B3A", fillColor: "#06B6D4", fillOpacity: 0.2, weight: 2 }}
-        />
-      ))}
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
 
-      {isDrawingZone && tempZone.length > 0 && (
-        <Polygon
-          positions={tempZone.map((p) => [p.lat, p.lng] as [number, number])}
-          pathOptions={{ color: "#06B6D4", fillColor: "#06B6D4", fillOpacity: 0.1, weight: 2, dashArray: "6 4" }}
-        />
-      )}
-    </MapContainer>
-  );
+  // Handle click
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const handler = (e: L.LeafletMouseEvent) => onMapClick(e.latlng.lat, e.latlng.lng);
+    map.on("click", handler);
+    return () => { map.off("click", handler); };
+  }, [onMapClick]);
+
+  // Render layers
+  useEffect(() => {
+    const group = layersRef.current;
+    group.clearLayers();
+
+    // Markers
+    markers.forEach((m, i) => {
+      L.marker([m.lat, m.lng]).bindPopup(`Punto ${i + 1}`).addTo(group);
+    });
+
+    // Route polyline
+    if (route && markers[route.origin] && markers[route.destination]) {
+      const o = markers[route.origin];
+      const d = markers[route.destination];
+      L.polyline([[o.lat, o.lng], [d.lat, d.lng]], { color: "#06B6D4", weight: 4 }).addTo(group);
+    }
+
+    // Saved zones
+    zones.forEach((z) => {
+      L.polygon(
+        z.points.map((p) => [p.lat, p.lng] as [number, number]),
+        { color: "#0B1B3A", fillColor: "#06B6D4", fillOpacity: 0.2, weight: 2 }
+      ).addTo(group);
+    });
+
+    // Temp zone
+    if (isDrawingZone && tempZone.length > 0) {
+      L.polygon(
+        tempZone.map((p) => [p.lat, p.lng] as [number, number]),
+        { color: "#06B6D4", fillColor: "#06B6D4", fillOpacity: 0.1, weight: 2, dashArray: "6 4" }
+      ).addTo(group);
+    }
+  }, [markers, route, zones, tempZone, isDrawingZone]);
+
+  return <div ref={containerRef} className="w-full h-full min-h-[400px] rounded-lg" />;
 };
 
 export default MapView;
