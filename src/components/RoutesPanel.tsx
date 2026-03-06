@@ -18,6 +18,8 @@ interface Props {
 
 type TransportMode = "car" | "foot" | "bike";
 
+const SPEED_KMH: Record<TransportMode, number> = { car: 80, foot: 5, bike: 15 };
+
 interface NominatimResult {
   place_id: number;
   display_name: string;
@@ -152,7 +154,7 @@ const RoutesPanel = ({ routeResult, onCalculate }: Props) => {
 
       const route = data.routes[0];
       const distKm = Math.round((route.distance / 1000) * 10) / 10;
-      const durMin = Math.round(route.duration / 60);
+      const durMin = Math.round((distKm / SPEED_KMH[mode]) * 60);
       const geometry: [number, number][] = route.geometry.coordinates.map(
         (c: [number, number]) => [c[1], c[0]]
       );
@@ -253,11 +255,6 @@ const RoutesPanel = ({ routeResult, onCalculate }: Props) => {
               <Clock className="w-4 h-4 text-accent shrink-0" />
               <span>Duración estimada: <strong>{formatDuration(routeResult.duration)}</strong></span>
             </div>
-            {import.meta.env.DEV && routeResult.distance > 0 && routeResult.duration > 0 && (
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
-                <span>Debug: vel. media ≈ {(routeResult.distance / (routeResult.duration / 60)).toFixed(1)} km/h</span>
-              </div>
-            )}
             {arrivalTime && (
               <div className="flex items-center gap-2 text-sm text-foreground pt-1 border-t border-accent/10">
                 <Navigation className="w-4 h-4 text-accent shrink-0" />
