@@ -254,6 +254,7 @@ const HomePage = () => {
             tempZone={tempZone}
             isDrawingZone={isDrawingZone}
             onMapClick={handleMapClick}
+            onSelectPredefined={handleSelectPredefined}
           />
         </div>
       </div>
