@@ -168,6 +168,28 @@ const HomePage = () => {
     toast.success("Ruta guardada");
   };
 
+  const handleSelectPredefined = useCallback(async (pr: PredefinedRoute) => {
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${pr.origen.lng},${pr.origen.lat};${pr.destino.lng},${pr.destino.lat}?overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.code === "Ok" && data.routes?.length) {
+        const route = data.routes[0];
+        const distKm = Math.round((route.distance / 1000) * 10) / 10;
+        const durMin = Math.round((distKm / 80) * 60);
+        const geometry: [number, number][] = route.geometry.coordinates.map(
+          (c: [number, number]) => [c[1], c[0]]
+        );
+        setRouteResult({ originCoord: pr.origen, destCoord: pr.destino, geometry, distance: distKm, duration: durMin });
+        setRouteOriginLabel(pr.origen.label);
+        setRouteDestLabel(pr.destino.label);
+        toast.success(`Mostrando: ${pr.nombre}`);
+      }
+    } catch {
+      toast.error("No se pudo cargar la ruta");
+    }
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
