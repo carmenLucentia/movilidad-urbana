@@ -4,6 +4,7 @@ import { isAuthenticated, getAuthUser, loadJSON, saveJSON } from "@/utils/storag
 import Header from "@/components/Header";
 import type { SavedRoute } from "@/types/models";
 import { Route as RouteIcon, MapPin, Clock, Car, Footprints, Bike, Trash2, Eye, ArrowLeft } from "lucide-react";
+import { formatDuration } from "@/utils/formatDuration";
 
 const modeLabel: Record<string, { label: string; icon: React.ElementType }> = {
   coche: { label: "Coche", icon: Car },
@@ -77,7 +78,7 @@ const RoutesListPage = () => {
                     </p>
                     <p className="text-xs text-muted-foreground flex items-center gap-3 mt-0.5">
                       <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{r.distanciaKm} km</span>
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{r.duracionMin} min</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatDuration(r.duracionMin)}</span>
                       <span>{m.label}</span>
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
