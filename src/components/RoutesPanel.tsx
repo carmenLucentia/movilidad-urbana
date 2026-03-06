@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { MapPin, Navigation, Clock, Route as RouteIcon, Car, Footprints, Bike, Bus, TrainFront } from "lucide-react";
+import { formatDuration } from "@/utils/formatDuration";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export interface RouteResult {
@@ -250,9 +251,9 @@ const RoutesPanel = ({ routeResult, onCalculate }: Props) => {
             </div>
             <div className="flex items-center gap-2 text-sm text-foreground">
               <Clock className="w-4 h-4 text-accent shrink-0" />
-              <span>Duración estimada: <strong>{routeResult.duration} min</strong></span>
+              <span>Duración estimada: <strong>{formatDuration(routeResult.duration)}</strong></span>
             </div>
-            {routeResult.distance > 0 && routeResult.duration > 0 && (
+            {import.meta.env.DEV && routeResult.distance > 0 && routeResult.duration > 0 && (
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
                 <span>Debug: vel. media ≈ {(routeResult.distance / (routeResult.duration / 60)).toFixed(1)} km/h</span>
               </div>
