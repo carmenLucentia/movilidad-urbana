@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css";
 import type { Marker as MarkerType } from "./MarkersPanel";
 import type { RouteResult } from "./RoutesPanel";
 import type { Zone } from "./ZonesPanel";
+import { predefinedRoutes, type PredefinedRoute } from "@/data/predefinedRoutes";
 
 // Fix default marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -31,6 +32,15 @@ const destIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
+const catalogIcon = new L.Icon({
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-orange.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+
 interface Props {
   markers: MarkerType[];
   routeResult: RouteResult | null;
@@ -38,9 +48,10 @@ interface Props {
   tempZone: { lat: number; lng: number }[];
   isDrawingZone: boolean;
   onMapClick: (lat: number, lng: number) => void;
+  onSelectPredefined?: (route: PredefinedRoute) => void;
 }
 
-const MapView = ({ markers, routeResult, zones, tempZone, isDrawingZone, onMapClick }: Props) => {
+const MapView = ({ markers, routeResult, zones, tempZone, isDrawingZone, onMapClick, onSelectPredefined }: Props) => {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<L.LayerGroup>(L.layerGroup());
@@ -84,7 +95,6 @@ const MapView = ({ markers, routeResult, zones, tempZone, isDrawingZone, onMapCl
 
     // OSRM route
     if (routeResult) {
-      // Origin & destination markers
       L.marker([routeResult.originCoord.lat, routeResult.originCoord.lng], { icon: originIcon })
         .bindPopup("Origen")
         .addTo(group);
@@ -92,7 +102,6 @@ const MapView = ({ markers, routeResult, zones, tempZone, isDrawingZone, onMapCl
         .bindPopup("Destino")
         .addTo(group);
 
-      // Route polyline
       const polyline = L.polyline(routeResult.geometry, {
         color: "#06B6D4",
         weight: 4,
@@ -101,10 +110,34 @@ const MapView = ({ markers, routeResult, zones, tempZone, isDrawingZone, onMapCl
         lineJoin: "round",
       }).addTo(group);
 
-      // Fit bounds
       if (mapRef.current) {
         mapRef.current.fitBounds(polyline.getBounds(), { padding: [40, 40] });
       }
+    }
+
+    // Predefined route markers (only when no active route)
+    if (!routeResult) {
+      predefinedRoutes.forEach((pr) => {
+        const midLat = (pr.origen.lat + pr.destino.lat) / 2;
+        const midLng = (pr.origen.lng + pr.destino.lng) / 2;
+        const marker = L.marker([midLat, midLng], { icon: catalogIcon }).addTo(group);
+        const popupContent = document.createElement("div");
+        popupContent.innerHTML = `
+          <div style="min-width:160px">
+            <strong style="font-size:13px">${pr.nombre}</strong>
+            <p style="font-size:11px;color:#666;margin:4px 0">${pr.descripcion}</p>
+            <button id="btn-${pr.id}" style="margin-top:4px;padding:4px 10px;font-size:11px;background:#06B6D4;color:#fff;border:none;border-radius:4px;cursor:pointer">Mostrar ruta</button>
+          </div>
+        `;
+        marker.bindPopup(popupContent);
+        marker.on("popupopen", () => {
+          const btn = document.getElementById(`btn-${pr.id}`);
+          btn?.addEventListener("click", () => {
+            onSelectPredefined?.(pr);
+            marker.closePopup();
+          });
+        });
+      });
     }
 
     // Saved zones
@@ -122,7 +155,7 @@ const MapView = ({ markers, routeResult, zones, tempZone, isDrawingZone, onMapCl
         { color: "#06B6D4", fillColor: "#06B6D4", fillOpacity: 0.1, weight: 2, dashArray: "6 4" }
       ).addTo(group);
     }
-  }, [markers, routeResult, zones, tempZone, isDrawingZone]);
+  }, [markers, routeResult, zones, tempZone, isDrawingZone, onSelectPredefined]);
 
   return <div ref={containerRef} className="w-full h-full min-h-[400px] rounded-lg" />;
 };
