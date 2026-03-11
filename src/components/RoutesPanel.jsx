@@ -77,7 +77,7 @@ const AddressInput = ({ label, placeholder, value, onChange, onSelect, icon: Ico
   );
 };
 
-const RoutesPanel = ({ routeResult, onCalculate }) => {
+const RoutesPanel = ({ routeResult, onCalculate, isRouteActive, onStartRoute, onStopRoute }) => {
   const [originText, setOriginText] = useState("");
   const [destText, setDestText] = useState("");
   const [originCoord, setOriginCoord] = useState(null);
