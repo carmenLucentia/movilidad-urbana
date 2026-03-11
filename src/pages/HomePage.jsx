@@ -28,6 +28,7 @@ const HomePage = () => {
   const [zones, setZones] = useState([]);
   const [isDrawingZone, setIsDrawingZone] = useState(false);
   const [tempZone, setTempZone] = useState([]);
+  const [isRouteActive, setIsRouteActive] = useState(false);
 
   useEffect(() => {
     const selRouteKey = `selectedRoute:${authUser}`;
