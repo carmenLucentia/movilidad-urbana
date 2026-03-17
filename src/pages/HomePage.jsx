@@ -14,7 +14,7 @@ const HomePage = () => {
   const navigate = useNavigate();
   const authUser = getAuthUser();
   const { fetchApi } = useApi();
-  const [placesApi, setPlacesApi] = useState(null);
+  const [places, setPlaces] = useState([]);
   const [apiError, setApiError] = useState("");
 
   useEffect(() => {
@@ -25,7 +25,7 @@ const HomePage = () => {
   async function cargarPlaces() {
     try {
       const data = await fetchApi("/places-test");
-      setPlacesApi(data);
+      setPlaces(data);
     } catch (err) {
       setApiError(err.message);
     }
@@ -221,11 +221,6 @@ const HomePage = () => {
   {apiError && (
     <p className="text-sm text-red-500">Error backend: {apiError}</p>
   )}
-  {placesApi && (
-    <pre className="text-xs bg-muted p-3 rounded-md overflow-auto max-h-[200px]">
-      {JSON.stringify(placesApi, null, 2)}
-    </pre>
-  )}
 </div>
 
       <div className="flex-1 flex gap-4 p-4 overflow-hidden">
@@ -281,6 +276,7 @@ const HomePage = () => {
         <div className="flex-1 bg-card border border-border rounded-lg shadow-[var(--shadow-card)] overflow-hidden">
           <MapView
             markers={markers}
+            places={places}
             routeResult={routeResult}
             zones={zones}
             tempZone={tempZone}

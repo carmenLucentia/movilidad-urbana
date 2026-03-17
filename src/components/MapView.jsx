@@ -10,6 +10,9 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
 });
 
+//Temporal: 
+// iconos origen y destino se usan para ejemplo en front
+// Objetivo: borararlas pq usaremos rutas cargadas desde backend/BD
 const originIcon = new L.Icon({
   iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png",
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
@@ -28,7 +31,7 @@ const catalogIcon = new L.Icon({
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
 });
 
-const MapView = ({ markers, routeResult, zones, tempZone, isDrawingZone, onMapClick, onSelectPredefined }) => {
+const MapView = ({ markers, places, routeResult, zones, tempZone, isDrawingZone, onMapClick, onSelectPredefined }) => {
   const mapRef = useRef(null);
   const containerRef = useRef(null);
   const layersRef = useRef(L.layerGroup());
@@ -65,6 +68,17 @@ const MapView = ({ markers, routeResult, zones, tempZone, isDrawingZone, onMapCl
     markers.forEach((m, i) => {
       L.marker([m.lat, m.lng]).bindPopup(`Punto ${i + 1}`).addTo(group);
     });
+    
+places?.forEach((place) => {
+  L.marker([place.lat, place.lon])
+    .bindPopup(`
+      <div>
+        <strong>${place.name || "Lugar"}</strong><br/>
+        ${place.address || ""}
+      </div>
+    `)
+    .addTo(group);
+});
 
     if (routeResult) {
       L.marker([routeResult.originCoord.lat, routeResult.originCoord.lng], { icon: originIcon })
@@ -118,7 +132,7 @@ const MapView = ({ markers, routeResult, zones, tempZone, isDrawingZone, onMapCl
         { color: "#06B6D4", fillColor: "#06B6D4", fillOpacity: 0.1, weight: 2, dashArray: "6 4" }
       ).addTo(group);
     }
-  }, [markers, routeResult, zones, tempZone, isDrawingZone, onSelectPredefined]);
+  }, [markers, places, routeResult, zones, tempZone, isDrawingZone, onSelectPredefined]);
 
   return <div ref={containerRef} className="w-full h-full min-h-[400px] rounded-lg" />;
 };
