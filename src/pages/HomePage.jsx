@@ -90,6 +90,19 @@ const HomePage = () => {
     [isDrawingZone]
   );
 
+//muestra los horarios de un lugar
+  const getPlaceHours = async (placeId) => {
+  try {
+    const data = await fetchApi(`/places/${placeId}/hours`, {}, true);
+    console.log("placeId:", placeId);
+    console.log("hours:", data);
+    return data;
+  } catch (error) {
+    console.error("Error al cargar horarios:", error);
+    return [];
+  }
+};
+
   const removeMarker = (index) => {
     setMarkers((prev) => prev.filter((_, idx) => idx !== index));
   };
@@ -251,6 +264,7 @@ const HomePage = () => {
             tempZone={tempZone}
             isDrawingZone={isDrawingZone}
             onMapClick={handleMapClick}
+            onLoadPlaceHours={getPlaceHours}
           />
         </div>
       </div>

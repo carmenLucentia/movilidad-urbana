@@ -37,6 +37,7 @@ const MapView = ({
   tempZone,
   isDrawingZone,
   onMapClick,
+  onLoadPlaceHours,
 }) => {
   const mapRef = useRef(null);
   const containerRef = useRef(null);
@@ -85,15 +86,45 @@ const MapView = ({
 
     // Lugares cargados desde backend
     places?.forEach((place) => {
-      L.marker([place.lat, place.lon])
-        .bindPopup(`
-          <div>
-            <strong>${place.name || "Lugar"}</strong><br/>
-            ${place.category || ""}
-          </div>
-        `)
-        .addTo(group);
-    });
+  const marker = L.marker([place.lat, place.lon]).addTo(group);
+
+  marker.bindPopup(`
+    <div>
+      <strong>${place.name || "Lugar"}</strong><br/>
+      ${place.category || ""}<br/>
+      <span style="color:#666;">Cargando horarios...</span>
+    </div>
+  `);
+
+  marker.on("popupopen", async () => {
+    const hours = await onLoadPlaceHours?.(place.place_id);
+
+    const hoursHtml =
+      hours && hours.length > 0
+        ? hours
+            .map((h) => {
+              const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+              const day = dayNames[h.dow] ?? `Día ${h.dow}`;
+
+              if (h.closed) {
+                return `<div>${day}: Cerrado</div>`;
+              }
+
+              return `<div>${day}: ${h.open_time || "--"} - ${h.close_time || "--"}</div>`;
+            })
+            .join("")
+        : "<div>Sin horarios disponibles</div>";
+
+    marker.setPopupContent(`
+      <div>
+        <strong>${place.name || "Lugar"}</strong><br/>
+        ${place.category || ""}<br/><br/>
+        <strong>Horarios:</strong>
+        ${hoursHtml}
+      </div>
+    `);
+  });
+});
 
     // Ruta calculada
     if (routeResult) {
