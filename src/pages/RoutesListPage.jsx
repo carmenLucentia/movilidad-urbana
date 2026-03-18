@@ -1,43 +1,46 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
-import { predefinedRoutes, provincias, getLocalidades } from "@/data/predefinedRoutes";
-import { Route as RouteIcon, Search, MapPin, Eye, Filter, ArrowLeft } from "lucide-react";
-import { saveJSON, getAuthUser } from "@/utils/storage";
+import { Route as RouteIcon, Search, MapPin, Eye, ArrowLeft, Trash2 } from "lucide-react";
+import { saveJSON, loadJSON, getAuthUser } from "@/utils/storage";
+import { toast } from "sonner";
 
 const RoutesListPage = () => {
   const navigate = useNavigate();
   const authUser = getAuthUser();
   const [search, setSearch] = useState("");
-  const [provincia, setProvincia] = useState("");
-  const [localidad, setLocalidad] = useState("");
-
-  const localidades = provincia ? getLocalidades(provincia) : [];
+  const [routes, setRoutes] = useState(() => loadJSON(`rutas:${authUser}`, []));
 
   const filtered = useMemo(() => {
-    return predefinedRoutes.filter((r) => {
-      if (provincia && r.provincia !== provincia) return false;
-      if (localidad && r.localidad !== localidad) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        return (
-          r.nombre.toLowerCase().includes(q) ||
-          r.descripcion.toLowerCase().includes(q) ||
-          r.localidad.toLowerCase().includes(q)
-        );
-      }
-      return true;
+    return routes.filter((route) => {
+      if (!search) return true;
+
+      const q = search.toLowerCase();
+
+      return (
+        route.origen?.label?.toLowerCase().includes(q) ||
+        route.destino?.label?.toLowerCase().includes(q) ||
+        route.modo?.toLowerCase().includes(q)
+      );
     });
-  }, [search, provincia, localidad]);
+  }, [routes, search]);
 
   const viewOnMap = (route) => {
-    saveJSON(`selectedPredefined:${authUser}`, route);
+    saveJSON(`selectedRoute:${authUser}`, route);
     navigate("/mapa");
+  };
+
+  const deleteRoute = (routeId) => {
+    const updatedRoutes = routes.filter((route) => route.id !== routeId);
+    setRoutes(updatedRoutes);
+    saveJSON(`rutas:${authUser}`, updatedRoutes);
+    toast.success("Ruta eliminada");
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
+
       <div className="flex-1 px-6 py-8 max-w-5xl mx-auto w-full">
         <button
           onClick={() => navigate("/mapa")}
@@ -49,80 +52,93 @@ const RoutesListPage = () => {
 
         <h1 className="text-xl font-bold text-foreground flex items-center gap-2 mb-2">
           <RouteIcon className="w-5 h-5 text-accent" />
-          Catálogo de rutas
+          Rutas guardadas
         </h1>
+
         <p className="text-sm text-muted-foreground mb-6">
-          Explora las rutas predefinidas de la empresa. Filtra por provincia o busca por nombre.
+          Consulta las rutas que has guardado y vuelve a visualizarlas en el mapa.
         </p>
 
-        <div className="flex flex-wrap gap-3 mb-6">
-          <div className="relative flex-1 min-w-[200px]">
+        <div className="mb-6">
+          <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Buscar ruta..."
+              placeholder="Buscar por origen, destino o modo..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full h-10 rounded-md border border-input bg-card pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-accent transition-all"
             />
-          </div>
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-muted-foreground" />
-            <select
-              value={provincia}
-              onChange={(e) => { setProvincia(e.target.value); setLocalidad(""); }}
-              className="h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-accent"
-            >
-              <option value="">Todas las provincias</option>
-              {provincias.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-            {localidades.length > 0 && (
-              <select
-                value={localidad}
-                onChange={(e) => setLocalidad(e.target.value)}
-                className="h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-accent"
-              >
-                <option value="">Todas las localidades</option>
-                {localidades.map((l) => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
-              </select>
-            )}
           </div>
         </div>
 
         {filtered.length === 0 ? (
           <div className="text-center py-16">
             <RouteIcon className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-            <p className="text-muted-foreground">No se encontraron rutas con esos filtros.</p>
+            <p className="text-muted-foreground">
+              {routes.length === 0
+                ? "Todavía no has guardado ninguna ruta."
+                : "No se encontraron rutas con esa búsqueda."}
+            </p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
-            {filtered.map((r) => (
+            {filtered.map((route) => (
               <div
-                key={r.id}
+                key={route.id}
                 className="bg-card border border-border rounded-lg p-5 flex flex-col gap-3 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elevated)] transition-shadow"
               >
                 <div>
-                  <h3 className="text-sm font-bold text-foreground">{r.nombre}</h3>
+                  <h3 className="text-sm font-bold text-foreground">
+                    {route.origen?.label?.split(",")[0] || "Origen"} → {route.destino?.label?.split(",")[0] || "Destino"}
+                  </h3>
+
                   <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                     <MapPin className="w-3 h-3" />
-                    {r.provincia} · {r.localidad}
+                    {route.modo || "Sin modo"} · {route.fechaISO ? new Date(route.fechaISO).toLocaleDateString() : "Sin fecha"}
                   </p>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{r.descripcion}</p>
-                <div className="flex items-center justify-between mt-auto pt-2 border-t border-border">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
-                    {r.origen.label.split(",")[0]} → {r.destino.label.split(",")[0]}
-                  </span>
+
+                <div className="text-xs text-muted-foreground leading-relaxed space-y-1">
+                  <p>
+                    <strong>Origen:</strong> {route.origen?.label || "No disponible"}
+                  </p>
+                  <p>
+                    <strong>Destino:</strong> {route.destino?.label || "No disponible"}
+                  </p>
+                  <p>
+                    <strong>Distancia:</strong> {route.distanciaKm ?? "-"} km
+                  </p>
+                  <p>
+                    <strong>Duración:</strong> {route.duracionMin ?? "-"} min
+                  </p>
+                  {route.salidaHora && (
+                    <p>
+                      <strong>Salida:</strong> {route.salidaHora}
+                    </p>
+                  )}
+                  {route.llegadaHora && (
+                    <p>
+                      <strong>Llegada:</strong> {route.llegadaHora}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between mt-auto pt-2 border-t border-border gap-2">
                   <button
-                    onClick={() => viewOnMap(r)}
+                    onClick={() => viewOnMap(route)}
                     className="h-8 px-3 rounded-md bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors flex items-center gap-1.5"
                   >
                     <Eye className="w-3.5 h-3.5" />
                     Ver en mapa
+                  </button>
+
+                  <button
+                    onClick={() => deleteRoute(route.id)}
+                    className="h-8 px-3 rounded-md bg-red-500/10 text-red-500 text-xs font-medium hover:bg-red-500/20 transition-colors flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Eliminar
                   </button>
                 </div>
               </div>

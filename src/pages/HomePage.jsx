@@ -14,28 +14,9 @@ const HomePage = () => {
   const navigate = useNavigate();
   const authUser = getAuthUser();
   const { fetchApi } = useApi();
+
   const [places, setPlaces] = useState([]);
   const [apiError, setApiError] = useState("");
-
-  useEffect(() => {
-    if (!isAuthenticated()) navigate("/login");
-  }, [navigate]);
-
-  useEffect(() => {
-  async function cargarPlaces() {
-    try {
-      const data = await fetchApi("/places-test");
-      setPlaces(data);
-    } catch (err) {
-      setApiError(err.message);
-    }
-  }
-
-  cargarPlaces();
-}, [fetchApi]);
-
-  const markersKey = `markers:${authUser}`;
-  const [markers, setMarkers] = useState(() => loadJSON(markersKey, []));
   const [routeResult, setRouteResult] = useState(null);
   const [routeOriginLabel, setRouteOriginLabel] = useState("");
   const [routeDestLabel, setRouteDestLabel] = useState("");
@@ -46,13 +27,34 @@ const HomePage = () => {
   const [tempZone, setTempZone] = useState([]);
   const [isRouteActive, setIsRouteActive] = useState(false);
 
+  const markersKey = `markers:${authUser}`;
+  const [markers, setMarkers] = useState(() => loadJSON(markersKey, []));
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      navigate("/login");
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    async function cargarPlaces() {
+      try {
+        const data = await fetchApi("/places", {}, true);
+        setPlaces(data);
+        setApiError("");
+      } catch (err) {
+        setApiError(err.message || "Error al cargar lugares");
+      }
+    }
+
+    cargarPlaces();
+  }, [fetchApi]);
+
   useEffect(() => {
     const selRouteKey = `selectedRoute:${authUser}`;
     const selZoneKey = `selectedZone:${authUser}`;
-    const selPredefinedKey = `selectedPredefined:${authUser}`;
     const selRoute = loadJSON(selRouteKey, null);
     const selZone = loadJSON(selZoneKey, null);
-    const selPredefined = loadJSON(selPredefinedKey, null);
 
     if (selRoute) {
       setRouteResult({
@@ -67,30 +69,15 @@ const HomePage = () => {
       localStorage.removeItem(selRouteKey);
     }
 
-    if (selPredefined) {
-      localStorage.removeItem(selPredefinedKey);
-      (async () => {
-        try {
-          const result = await cargarRutaPredefinida(
-        selPredefined.origen,
-        selPredefined.destino
-      );
-      setRouteResult(result);
-      setRouteOriginLabel(selPredefined.origen.label);
-      setRouteDestLabel(selPredefined.destino.label);
-    } catch {
-      // silently fail
-    }
-  })();
-}
-
     if (selZone) {
       setZones([{ points: selZone.points }]);
       localStorage.removeItem(selZoneKey);
     }
   }, [authUser]);
 
-  useEffect(() => saveJSON(markersKey, markers), [markers, markersKey]);
+  useEffect(() => {
+    saveJSON(markersKey, markers);
+  }, [markers, markersKey]);
 
   const handleMapClick = useCallback(
     (lat, lng) => {
@@ -103,20 +90,22 @@ const HomePage = () => {
     [isDrawingZone]
   );
 
-  const removeMarker = (i) => {
-    setMarkers((prev) => prev.filter((_, idx) => idx !== i));
+  const removeMarker = (index) => {
+    setMarkers((prev) => prev.filter((_, idx) => idx !== index));
   };
 
   const closeZone = () => {
     if (tempZone.length >= 3) {
       const defaultName = `Zona ${zones.length + 1}`;
       const name = prompt("Nombre de la zona:", defaultName) || defaultName;
+
       const savedZone = {
         id: crypto.randomUUID(),
         nombre: name,
         points: tempZone,
         fechaISO: new Date().toISOString(),
       };
+
       const zonesKey = `zonas:${authUser}`;
       const existing = loadJSON(zonesKey, []);
       saveJSON(zonesKey, [...existing, savedZone]);
@@ -124,6 +113,7 @@ const HomePage = () => {
       setZones((prev) => [...prev, { points: tempZone }]);
       toast.success("Zona guardada");
     }
+
     setTempZone([]);
     setIsDrawingZone(false);
   };
@@ -138,7 +128,9 @@ const HomePage = () => {
 
   const saveRoute = () => {
     if (!routeResult) return;
+
     let llegadaHora;
+
     if (departureTime && routeResult.duration > 0) {
       const [h, m] = departureTime.split(":").map(Number);
       const total = h * 60 + m + routeResult.duration;
@@ -149,8 +141,16 @@ const HomePage = () => {
 
     const saved = {
       id: crypto.randomUUID(),
-      origen: { label: routeOriginLabel, lat: routeResult.originCoord.lat, lng: routeResult.originCoord.lng },
-      destino: { label: routeDestLabel, lat: routeResult.destCoord.lat, lng: routeResult.destCoord.lng },
+      origen: {
+        label: routeOriginLabel,
+        lat: routeResult.originCoord.lat,
+        lng: routeResult.originCoord.lng,
+      },
+      destino: {
+        label: routeDestLabel,
+        lat: routeResult.destCoord.lat,
+        lng: routeResult.destCoord.lng,
+      },
       modo: routeMode,
       distanciaKm: routeResult.distance,
       duracionMin: routeResult.duration,
@@ -165,41 +165,6 @@ const HomePage = () => {
     saveJSON(key, [...existing, saved]);
     toast.success("Ruta guardada");
   };
-
-  const cargarRutaPredefinida = async (origen, destino) => {
-  const url = `https://router.project-osrm.org/route/v1/driving/${origen.lng},${origen.lat};${destino.lng},${destino.lat}?overview=full&geometries=geojson`;
-  const res = await fetch(url);
-  const data = await res.json();
-
-  if (data.code === "Ok" && data.routes?.length) {
-    const route = data.routes[0];
-    const distKm = Math.round((route.distance / 1000) * 10) / 10;
-    const durMin = Math.round((distKm / 80) * 60);
-    const geometry = route.geometry.coordinates.map((c) => [c[1], c[0]]);
-
-    return {
-      originCoord: origen,
-      destCoord: destino,
-      geometry,
-      distance: distKm,
-      duration: durMin,
-    };
-  }
-
-  throw new Error("No se pudo calcular la ruta");
-};
-
-  const handleSelectPredefined = useCallback(async (pr) => {
-  try {
-    const result = await cargarRutaPredefinida(pr.origen, pr.destino);
-    setRouteResult(result);
-    setRouteOriginLabel(pr.origen.label);
-    setRouteDestLabel(pr.destino.label);
-    toast.success(`Mostrando: ${pr.nombre}`);
-  } catch {
-    toast.error("No se pudo cargar la ruta");
-  }
-}, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -217,11 +182,10 @@ const HomePage = () => {
           Marca puntos, calcula rutas y define zonas directamente sobre el mapa.
         </p>
       </div>
+
       <div className="px-6 pb-2">
-  {apiError && (
-    <p className="text-sm text-red-500">Error backend: {apiError}</p>
-  )}
-</div>
+        {apiError && <p className="text-sm text-red-500">Error backend: {apiError}</p>}
+      </div>
 
       <div className="flex-1 flex gap-4 p-4 overflow-hidden">
         <aside className="w-[360px] shrink-0 bg-card border border-border rounded-lg p-5 flex flex-col gap-6 overflow-y-auto shadow-[var(--shadow-card)]">
@@ -230,7 +194,9 @@ const HomePage = () => {
             onRemove={removeMarker}
             onClearAll={() => setMarkers([])}
           />
+
           <div className="h-px bg-border" />
+
           <RoutesPanel
             routeResult={routeResult}
             onCalculate={handleRouteCalculated}
@@ -246,6 +212,7 @@ const HomePage = () => {
               toast.info("Ruta finalizada");
             }}
           />
+
           {routeResult && !isRouteActive && (
             <button
               onClick={saveRoute}
@@ -255,7 +222,9 @@ const HomePage = () => {
               Guardar ruta
             </button>
           )}
+
           <div className="h-px bg-border" />
+
           <ZonesPanel
             zones={zones}
             isDrawing={isDrawingZone}
@@ -282,7 +251,6 @@ const HomePage = () => {
             tempZone={tempZone}
             isDrawingZone={isDrawingZone}
             onMapClick={handleMapClick}
-            onSelectPredefined={handleSelectPredefined}
           />
         </div>
       </div>
