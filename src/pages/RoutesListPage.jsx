@@ -20,6 +20,7 @@ const RoutesListPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Carga de rutas desde el backend al montar el componente
   useEffect(() => {
     const loadRoutesFromTravels = async () => {
       try {
@@ -60,6 +61,7 @@ const RoutesListPage = () => {
     loadRoutesFromTravels();
   }, [fetchApi]);
 
+  // Filtrado de rutas basado en el término de búsqueda
   const filtered = useMemo(() => {
     return routes.filter((route) => {
       if (!search) return true;

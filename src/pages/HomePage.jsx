@@ -7,7 +7,7 @@ import MapView from "@/components/MapView";
 import MarkersPanel from "@/components/MarkersPanel";
 import RoutesPanel from "@/components/RoutesPanel";
 import ZonesPanel from "@/components/ZonesPanel";
-import { Save } from "lucide-react";
+import { AccessibilityIcon, Save } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
 
 
@@ -31,12 +31,14 @@ const HomePage = () => {
   const markersKey = `markers:${authUser}`;
   const [markers, setMarkers] = useState(() => loadJSON(markersKey, []));
 
+// Control de Acceso
   useEffect(() => {
     if (!isAuthenticated()) {
       navigate("/login");
     }
   }, [navigate]);
 
+  // Carga de lugares desde el backend
   useEffect(() => {
     async function cargarPlaces() {
       try {
@@ -80,6 +82,7 @@ const HomePage = () => {
     saveJSON(markersKey, markers);
   }, [markers, markersKey]);
 
+  // Manejo de clicks en el mapa para agregar marcadores o puntos de zona
   const handleMapClick = useCallback(
     (lat, lng) => {
       if (isDrawingZone) {
@@ -131,7 +134,8 @@ const HomePage = () => {
     setTempZone([]);
     setIsDrawingZone(false);
   };
-
+ 
+  // Maneja resultado de cálculo de ruta desde el panel
   const handleRouteCalculated = (result, originLabel, destLabel, mode, depTime) => {
     setRouteResult(result);
     setRouteOriginLabel(originLabel);
@@ -152,7 +156,7 @@ const HomePage = () => {
       const am = total % 60;
       llegadaHora = `${String(ah).padStart(2, "0")}:${String(am).padStart(2, "0")}`;
     }
-
+ // Crea objeto de ruta guardada y la almacena en localStorage
     const saved = {
       id: crypto.randomUUID(),
       origen: {

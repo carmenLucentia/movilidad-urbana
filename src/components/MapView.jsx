@@ -29,6 +29,118 @@ const destIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
+const dayOrder = [0, 1, 2, 3, 4, 5, 6];
+const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+function formatHour(hour) {
+  if (!hour) return "--";
+
+  const [h, m] = hour.split(":");
+  return `${parseInt(h, 10)}:${m}`;
+}
+
+function timeToMinutes(hour) {
+  if (!hour) return 0;
+  const [h, m] = hour.split(":");
+  return parseInt(h, 10) * 60 + parseInt(m, 10);
+}
+
+function minutesToHour(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}:${m.toString().padStart(2, "0")}`;
+}
+
+function mergeRanges(ranges) {
+  if (!ranges.length) return [];
+
+  const sorted = [...ranges].sort(
+    (a, b) => timeToMinutes(a.open_time) - timeToMinutes(b.open_time)
+  );
+
+  const merged = [];
+  let current = {
+    start: timeToMinutes(sorted[0].open_time),
+    end: timeToMinutes(sorted[0].close_time),
+  };
+
+  for (let i = 1; i < sorted.length; i++) {
+    const nextStart = timeToMinutes(sorted[i].open_time);
+    const nextEnd = timeToMinutes(sorted[i].close_time);
+
+    if (nextStart <= current.end) {
+      current.end = Math.max(current.end, nextEnd);
+    } else {
+      merged.push({
+        start: minutesToHour(current.start),
+        end: minutesToHour(current.end),
+      });
+
+      current = {
+        start: nextStart,
+        end: nextEnd,
+      };
+    }
+  }
+
+  merged.push({
+    start: minutesToHour(current.start),
+    end: minutesToHour(current.end),
+  });
+
+  return merged;
+}
+
+function formatPlaceHours(hours) {
+  if (!hours || hours.length === 0) {
+    return "<div>Sin horarios disponibles</div>";
+  }
+
+  const grouped = {};
+
+  hours.forEach((h) => {
+    const day = h.dow;
+
+    if (h.closed) {
+      if (!grouped[day]) grouped[day] = { closed: true, ranges: [] };
+      return;
+    }
+
+    if (!grouped[day]) {
+      grouped[day] = { closed: false, ranges: [] };
+    }
+
+    grouped[day].ranges.push({
+      open_time: h.open_time,
+      close_time: h.close_time,
+    });
+  });
+
+  const orderedDays = Object.keys(grouped)
+    .map(Number)
+    .sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
+
+  return orderedDays
+    .map((day) => {
+      const dayLabel = dayNames[day] ?? `Día ${day}`;
+      const info = grouped[day];
+
+      if (info.closed || info.ranges.length === 0) {
+        return `<div><strong>${dayLabel}:</strong> Cerrado</div>`;
+      }
+
+      const mergedRanges = mergeRanges(info.ranges);
+
+      const text = mergedRanges
+        .map((r) => `${formatHour(r.start)} - ${formatHour(r.end)}`)
+        .join(", ");
+
+      return `<div><strong>${dayLabel}:</strong> ${text}</div>`;
+    })
+    .join("");
+}
+
+// Componente principal del mapa
 const MapView = ({
   markers,
   places,
@@ -96,24 +208,10 @@ const MapView = ({
     </div>
   `);
 
-  marker.on("popupopen", async () => {
+  // Abrir popup y cargar horarios al mismo tiempo
+   marker.on("popupopen", async () => {
     const hours = await onLoadPlaceHours?.(place.place_id);
-
-    const hoursHtml =
-      hours && hours.length > 0
-        ? hours
-            .map((h) => {
-              const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-              const day = dayNames[h.dow] ?? `Día ${h.dow}`;
-
-              if (h.closed) {
-                return `<div>${day}: Cerrado</div>`;
-              }
-
-              return `<div>${day}: ${h.open_time || "--"} - ${h.close_time || "--"}</div>`;
-            })
-            .join("")
-        : "<div>Sin horarios disponibles</div>";
+    const hoursHtml = formatPlaceHours(hours);
 
     marker.setPopupContent(`
       <div>
@@ -175,7 +273,7 @@ const MapView = ({
         }
       ).addTo(group);
     }
-  }, [markers, places, routeResult, zones, tempZone, isDrawingZone]);
+}, [markers, places, routeResult, zones, tempZone, isDrawingZone, onLoadPlaceHours]);
 
   return <div ref={containerRef} className="w-full h-full min-h-[400px] rounded-lg" />;
 };
