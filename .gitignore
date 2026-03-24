@@ -28,3 +28,4 @@ dist-ssr
 .env.development.local
 .env.production.local
 firebase.js
+.env.*
