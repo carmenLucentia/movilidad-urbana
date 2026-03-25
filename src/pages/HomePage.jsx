@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { isAuthenticated, getAuthUser, loadJSON, saveJSON } from "@/utils/storage";
+import { getAuthUser, loadJSON, saveJSON } from "@/utils/storage";
 import { toast } from "sonner";
 import Header from "@/components/Header";
 import MapView from "@/components/MapView";
 import MarkersPanel from "@/components/MarkersPanel";
 import RoutesPanel from "@/components/RoutesPanel";
 import ZonesPanel from "@/components/ZonesPanel";
-import { AccessibilityIcon, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
-
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -31,12 +30,6 @@ const HomePage = () => {
   const markersKey = `markers:${authUser}`;
   const [markers, setMarkers] = useState(() => loadJSON(markersKey, []));
 
-// Control de Acceso
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      navigate("/login");
-    }
-  }, [navigate]);
 
   // Carga de lugares desde el backend
   useEffect(() => {
@@ -183,7 +176,8 @@ const HomePage = () => {
     saveJSON(key, [...existing, saved]);
     toast.success("Ruta guardada");
   };
-
+  
+  
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />

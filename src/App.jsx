@@ -14,7 +14,11 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 const queryClient = new QueryClient();
 
 const PrivateRoute = ({ children }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div>Cargando...</div>;
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />;
