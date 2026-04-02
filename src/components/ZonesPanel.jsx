@@ -11,7 +11,7 @@ const ZonesPanel = ({ zones, isDrawing, tempZone, onStartDrawing, onCloseZone, o
       {!isDrawing ? (
         <button
           onClick={onStartDrawing}
-          className="h-[36px] px-4 rounded-md bg-accent text-accent-foreground text-xs font-medium hover:opacity-90 transition-opacity duration-150"
+          className="h-[36px] px-4 rounded-md bg-azul-oscuro text-white text-xs font-medium hover:opacity-90 transition-opacity duration-150"
         >
           Crear zona
         </button>
@@ -20,7 +20,7 @@ const ZonesPanel = ({ zones, isDrawing, tempZone, onStartDrawing, onCloseZone, o
           {tempZone.length >= 3 && (
             <button
               onClick={onCloseZone}
-              className="h-[36px] px-4 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity duration-150"
+              className="h-[36px] px-4 rounded-md bg-azul-oscuro text-white text-xs font-medium hover:opacity-90 transition-opacity duration-150"
             >
               Cerrar zona
             </button>

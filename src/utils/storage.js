@@ -12,8 +12,9 @@ export function saveJSON(key, value) {
 }
 
 export function isAuthenticated() {
-  return !!localStorage.getItem("firebaseToken");
+  return !!localStorage.getItem("firebaseToken")|| !!localStorage.getItem("user");
 }
+
 
 export function getAuthUser() {
   return localStorage.getItem("user") || "";

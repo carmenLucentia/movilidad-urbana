@@ -13,6 +13,23 @@ export default {
     },
     extend: {
       colors: {
+    // VERDES
+    "verde-oscuro": "#2F8A50",
+    "verde": "#5BB66C", // no existe 5SBR6C
+    "verde-claro": "#9ADE88",
+
+    // AZULES
+    "azul-oscuro": "#0E448F",
+    "azul": "#1A6BAB",
+    "azul-claro": "#48A9C5",
+
+    // SISTEMA EXISTENTE
+    border: "hsl(var(--border))",
+    input: "hsl(var(--input))",
+    ring: "hsl(var(--ring))",
+    background: "hsl(var(--background))",
+    foreground: "hsl(var(--foreground))",
+        
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

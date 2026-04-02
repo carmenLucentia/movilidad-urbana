@@ -7,6 +7,7 @@ const authContext = createContext();
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
+  const [loading, setLoading] = useState(true); 
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -20,6 +21,7 @@ export function AuthProvider({ children }) {
         setToken(null);
         localStorage.removeItem('token');
       }
+      setLoading(false);  
     });
     return unsubscribe;
   }, []);
@@ -27,7 +29,7 @@ export function AuthProvider({ children }) {
   const logout = () => signOut(auth);
 
   return (
-    <authContext.Provider value={{ user, token, logout }}>
+    <authContext.Provider value={{ user, token, loading, logout }}>
       {children}
     </authContext.Provider>
   );
