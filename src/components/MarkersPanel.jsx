@@ -13,7 +13,7 @@ const MarkersPanel = ({ markers, onRemove, onClearAll }) => (
       <>
         <ul className="flex flex-col gap-2 max-h-48 overflow-y-auto">
           {markers.map((m, i) => (
-            <li key={i} className="flex items-center justify-between bg-secondary rounded-md px-3 py-2">
+            <li key={i} className="flex items-center justify-between bg-verde-claro rounded-md px-3 py-2">
               <div className="text-xs">
                 <span className="font-medium text-foreground">Punto {i + 1}</span>{" "}
                 <span className="text-muted-foreground">

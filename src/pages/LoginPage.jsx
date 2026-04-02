@@ -4,8 +4,8 @@ import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { LogIn } from "lucide-react";
 import fondoCiudad from "@/assets/fondo1-mobility.png";
-import logo from "@/assets/logo-mobility-60x60.png";
-import tituloMovilidad from "@/assets/Imagen-mobility-e1761736499779.png";
+import logo from "@/assets/logo-mobility.png";
+import tituloMovilidad from "@/assets/titulo-mobility.png";
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -44,7 +44,7 @@ const LoginPage = () => {
     <div className="relative z-10 w-full max-w-[460px] mx-4 bg-white/85 backdrop-blur-xl rounded-3xl border border-white/40 p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)] flex flex-col gap-5">
 
       {/* badge */}
-      <span className="self-start text-xs font-semibold tracking-wide uppercase bg-green-100 text-green-600 px-3 py-1 rounded-full">
+      <span className="self-start text-xs font-semibold tracking-wide uppercase bg-verde-claro text-white px-3 py-1 rounded-full text-sm shadow-sm">
         Acceso
       </span>
 
@@ -59,7 +59,7 @@ const LoginPage = () => {
         <img
           src={tituloMovilidad}
           alt="Movilidad"
-          className="h-20 w-auto object-contain"
+          className="h-[120px] w-auto object-contain"
         />
       </div>
 

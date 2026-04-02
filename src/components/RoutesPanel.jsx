@@ -54,7 +54,7 @@ const AddressInput = ({ label, placeholder, value, onChange, onSelect, icon: Ico
   return (
     <div ref={containerRef} className="relative flex flex-col gap-1">
       <label className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5">
-        <Icon className="w-3.5 h-3.5 text-accent" />{label}
+        <Icon className="w-3.5 h-3.5 text-azul" />{label}
       </label>
       <input
         type="text" placeholder={placeholder} value={value}
@@ -146,7 +146,7 @@ const RoutesPanel = ({ routeResult, onCalculate, isRouteActive, onStartRoute, on
     <TooltipProvider>
       <div className="flex flex-col gap-3">
         <h3 className="text-sm font-bold text-foreground uppercase tracking-wide flex items-center gap-1.5">
-          <RouteIcon className="w-4 h-4 text-accent" />
+          <RouteIcon className="w-4 h-4 text-azul" />
           Rutas
         </h3>
 
@@ -191,7 +191,7 @@ const RoutesPanel = ({ routeResult, onCalculate, isRouteActive, onStartRoute, on
 
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-accent" />
+            <Clock className="w-3.5 h-3.5 text-azul" />
             Hora de salida <span className="font-normal text-muted-foreground">(opcional)</span>
           </label>
           <input type="time" value={departureTime} onChange={(e) => setDepartureTime(e.target.value)}
@@ -240,8 +240,7 @@ const RoutesPanel = ({ routeResult, onCalculate, isRouteActive, onStartRoute, on
             {!isRouteActive ? (
               <button
                 onClick={onStartRoute}
-                className="mt-2 h-[44px] rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-all duration-150 flex items-center justify-center gap-2"
-              >
+className="h-[44px] rounded-md bg-verde-oscuro text-white text-sm font-medium hover:bg-verde transition-colors duration-150 disabled:opacity-60 flex items-center justify-center gap-2"              >
                 <Play className="w-4 h-4" />
                 Iniciar ruta
               </button>

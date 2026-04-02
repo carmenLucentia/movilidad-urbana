@@ -3,7 +3,7 @@ import { getAuthUser, logout } from "@/utils/storage";
 import { LogOut } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import logo from "@/assets/logo-mobility-60x60.png";
+import logo from "@/assets/logo-mobility.png";
 
 const NAV_ITEMS = [
   { label: "Mapa", path: "/mapa" },
@@ -48,8 +48,8 @@ const Header = () => {
               onClick={() => navigate(item.path)}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors duration-150 ${
                 active
-                  ? "bg-accent/10 text-accent"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  ? "bg-verde text-white"
+                  : "text-verde hover:text-foreground hover:bg-verde-claro"
               }`}
             >
               {item.label}
