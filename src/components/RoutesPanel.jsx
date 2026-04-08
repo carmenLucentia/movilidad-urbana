@@ -38,7 +38,7 @@ function useNominatimSearch(query) {
   return { results, loading };
 }
 
-const AddressInput = ({ label, placeholder, value, onChange, onSelect, icon: Icon }) => {
+const AddressInput = ({ label, placeholder, value, onChange, onSelect, icon: Icon, allowCurrentLocation = false, onUseCurrentLocation, }) => {
   const [focused, setFocused] = useState(false);
   const { results, loading } = useNominatimSearch(value);
   const containerRef = useRef(null);
@@ -61,15 +61,41 @@ const AddressInput = ({ label, placeholder, value, onChange, onSelect, icon: Ico
         onChange={(e) => onChange(e.target.value)} onFocus={() => setFocused(true)}
         className="h-[44px] rounded-md border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-accent transition-all duration-150"
       />
-      {focused && value.length >= 3 && (
+      {focused && (
         <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-md shadow-lg z-50 max-h-[200px] overflow-y-auto">
-          {loading && <div className="px-3 py-2 text-xs text-muted-foreground">Buscando...</div>}
-          {!loading && results.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">Sin resultados</div>}
-          {results.map((r) => (
-            <button key={r.place_id}
+          {allowCurrentLocation && (
+            <button
+              type="button"
+              className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent/10 transition-colors duration-100 border-b border-border font-medium"
+              onClick={() => {
+                onUseCurrentLocation?.();
+                setFocused(false);
+              }}
+            >
+              Mi ubicación actual
+            </button>
+          )}
+
+          {value.length >= 3 && loading && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">Buscando...</div>
+          )}
+
+          {value.length >= 3 && !loading && results.length === 0 && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">Sin resultados</div>
+          )}
+
+          {value.length >= 3 && results.map((r) => (
+            <button
+              key={r.place_id}
+              type="button"
               className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-secondary transition-colors duration-100 border-b border-border last:border-b-0"
-              onClick={() => { onSelect(r); setFocused(false); }}
-            >{r.display_name}</button>
+              onClick={() => {
+                onSelect(r);
+                setFocused(false);
+              }}
+            >
+              {r.display_name}
+            </button>
           ))}
         </div>
       )}
@@ -96,6 +122,32 @@ const RoutesPanel = ({ routeResult, onCalculate, isRouteActive, onStartRoute, on
     setDestText(r.display_name);
     setDestCoord({ lat: parseFloat(r.lat), lng: parseFloat(r.lon) });
   }, []);
+
+  const handleUseCurrentLocation = useCallback(() => {
+  if (!navigator.geolocation) {
+    setError("La geolocalización no está disponible en este navegador");
+    return;
+  }
+
+  setError("");
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const { latitude, longitude } = position.coords;
+
+      setOriginText("Mi ubicación actual");
+      setOriginCoord({ lat: latitude, lng: longitude });
+    },
+    () => {
+      setError("No se pudo obtener tu ubicación");
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    }
+  );
+}, [setError]);
 
   const calculate = async () => {
     if (!originCoord || !destCoord) {
@@ -152,7 +204,8 @@ const RoutesPanel = ({ routeResult, onCalculate, isRouteActive, onStartRoute, on
 
         <AddressInput label="Origen" placeholder="Introduce una dirección o lugar"
           value={originText} onChange={(v) => { setOriginText(v); setOriginCoord(null); }}
-          onSelect={handleOriginSelect} icon={MapPin} />
+          onSelect={handleOriginSelect} onUseCurrentLocation={handleUseCurrentLocation}
+          allowCurrentLocation={true} icon={MapPin} />
 
         <AddressInput label="Destino" placeholder="Introduce una dirección o lugar"
           value={destText} onChange={(v) => { setDestText(v); setDestCoord(null); }}
