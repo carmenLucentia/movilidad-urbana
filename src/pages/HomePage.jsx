@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getAuthUser, loadJSON, saveJSON } from "@/utils/storage";
 import { toast } from "sonner";
 import Header from "@/components/Header";
 import MapView from "@/components/MapView";
-import MarkersPanel from "@/components/MarkersPanel";
 import RoutesPanel from "@/components/RoutesPanel";
 import ZonesPanel from "@/components/ZonesPanel";
 import { Save } from "lucide-react";
@@ -26,13 +25,13 @@ const HomePage = () => {
   const [tempZone, setTempZone] = useState([]);
   const [isRouteActive, setIsRouteActive] = useState(false);
   const [isUserLocation, setIsUserLocation] = useState(false);
-
+  const [selectedPoint, setSelectedPoint] = useState(null);
+  
   const markersKey = `markers:${authUser}`;
   const [markers, setMarkers] = useState(() => loadJSON(markersKey, []));
   
   const {
     position: liveUserPosition,
-    error: locationError,
     start: startLocation,
     stop: stopLocation,
   } = useUserLocation();
@@ -83,11 +82,16 @@ const HomePage = () => {
 
   // Manejo de clicks en el mapa para agregar marcadores o puntos de zona
   const handleMapClick = useCallback(
-    (lat, lng) => {
+    async (lat, lng) => {
       if (isDrawingZone) {
         setTempZone((prev) => [...prev, { lat, lng }]);
       } else {
-        setMarkers((prev) => [...prev, { lat, lng }]);
+        const point = {lat, lng};
+        setMarkers([point]);
+        
+        
+        const pointInfo = await getPointInfo(lat, lng);
+        setSelectedPoint(pointInfo);
       }
     },
     [isDrawingZone]
@@ -106,9 +110,52 @@ const HomePage = () => {
   }
 };
 
-  const removeMarker = (index) => {
-    setMarkers((prev) => prev.filter((_, idx) => idx !== index));
-  };
+const getPointInfo = async (lat, lng) => {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`
+    );
+
+    const data = await res.json();
+    const address = data.address || {};
+
+    const name =
+      data.name ||
+      address.road ||
+      address.neighbourhood ||
+      address.suburb ||
+      address.city ||
+      "Ubicación seleccionada";
+
+    const postalCode = address.postcode || "";
+    const city =
+      address.city ||
+      address.town ||
+      address.village ||
+      address.municipality ||
+      "";
+
+    const province = address.state_district || address.state || "";
+
+    const addressText = [postalCode, city, province].filter(Boolean).join(" ");
+
+    return {
+      lat,
+      lng,
+      name,
+      address: addressText || data.display_name || "Dirección no disponible",
+    };
+  } catch (error) {
+    console.error("Error al obtener información del punto:", error);
+
+    return {
+      lat,
+      lng,
+      name: "Ubicación seleccionada",
+      address: "Dirección no disponible",
+    };
+  }
+};
 
   const closeZone = () => {
     if (tempZone.length >= 3) {
@@ -191,7 +238,7 @@ const HomePage = () => {
 
 const stopLiveRoute = () => {
   stopLocation();
-
+  
   setIsRouteActive(false);
   setRouteResult(null);
   setRouteOriginLabel("");
@@ -215,7 +262,7 @@ const stopLiveRoute = () => {
       >
         <h2 className="text-xl font-bold text-foreground">Visualiza rutas y zonas urbanas</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Marca puntos, calcula rutas y define zonas directamente sobre el mapa.
+          Selecciona una ubicación, calcula rutas y define zonas directamente sobre el mapa.
         </p>
       </div>
 
@@ -223,16 +270,9 @@ const stopLiveRoute = () => {
         {apiError && <p className="text-sm text-red-500">Error backend: {apiError}</p>}
       </div>
 
-      <div className="flex-1 flex gap-4 p-4 overflow-hidden">
+      <div className="flex-1 flex gap-4 p-4 overflow-hidden relative">
         <aside className="w-[360px] shrink-0 bg-card border border-border rounded-lg p-5 flex flex-col gap-6 overflow-y-auto shadow-[var(--shadow-card)]">
-          <MarkersPanel
-            markers={markers}
-            onRemove={removeMarker}
-            onClearAll={() => setMarkers([])}
-          />
-
-          <div className="h-px bg-border" />
-
+        
           <RoutesPanel
             routeResult={routeResult}
             onCalculate={handleRouteCalculated}
@@ -271,7 +311,7 @@ const stopLiveRoute = () => {
           />
         </aside>
 
-        <div className="flex-1 bg-card border border-border rounded-lg shadow-[var(--shadow-card)] overflow-hidden">
+        <div className="flex-1 bg-card border border-border rounded-lg shadow-[var(--shadow-card)] overflow-hidden relative">
           <MapView
             markers={markers}
             places={places}   
@@ -288,9 +328,35 @@ const stopLiveRoute = () => {
             onMapClick={handleMapClick}
             onLoadPlaceHours={getPlaceHours}
           />
-        </div>
+        
+       {selectedPoint && !routeResult &&(
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[60%] max-w-md bg-card border border-border rounded-xl shadow-lg p-4 flex items-center justify-between z-[100]">
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold text-foreground">
+                {selectedPoint.name}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {selectedPoint.address}
+              </span>
+              <span className="text-xs text-azul mt-1">
+                {selectedPoint.lat.toFixed(6)}, {selectedPoint.lng.toFixed(6)}
+              </span>
+            </div>
+
+            <button
+              onClick={() => {
+                setSelectedPoint(null);
+                setMarkers([]);
+              }}
+              className="ml-a text-base text-muted-foreground hover:text-destructive transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+        )} 
       </div>
     </div>
+  </div>
   );
 };
 

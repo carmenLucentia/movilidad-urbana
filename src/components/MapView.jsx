@@ -211,13 +211,15 @@ const MapView = ({
     const hasActiveRoute = routeResult?.geometry?.length > 0;
     if (!hasActiveRoute) {
     // Marcadores creados manualmente por el usuario
-    markers.forEach((marker, index) => {
-      L.marker([marker.lat, marker.lng])
-        .bindPopup(`Punto ${index + 1}`)
-        .addTo(group);
-    });
+    if (markers.length > 0) {
+      const marker = markers[0];
 
-    // Lugares cargados desde backend
+      L.marker([marker.lat, marker.lng])
+        .bindPopup("Ubicación seleccionada")
+        .addTo(group);
+    }
+
+  // Lugares cargados desde backend
   places?.forEach((place) => {
     const marker = L.marker([place.lat, place.lon]).addTo(group);
 
