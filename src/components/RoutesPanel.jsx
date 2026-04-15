@@ -56,7 +56,7 @@ const AddressInput = ({ label, placeholder, value, onChange, onSelect, icon: Ico
   const [focused, setFocused] = useState(false); // input activo
   const { results, loading } = useNominatimSearch(value); // busca direccion
   const containerRef = useRef(null); 
-
+ 
   /*
   * Si click fuera del contenedor, cierra sugerencias
   * Limpia el evento al desmontar el componente 
@@ -137,10 +137,11 @@ const AddressInput = ({ label, placeholder, value, onChange, onSelect, icon: Ico
 };
 
 // Panel gestión de rutas: selección de origen/destino, modo transporte, cálculo y visualización de resultados
-const RoutesPanel = ({ routeResult, onCalculate, isRouteActive, onStartRoute, onStopRoute }) => {
+const RoutesPanel = ({ routeResult, onCalculate, isRouteActive, onStartRoute, onStopRoute, onPreviewRoute, onClearRoute }) => {
   const [originText, setOriginText] = useState("");
   const [originCoord, setOriginCoord] = useState(null);
   const [departureTime, setDepartureTime] = useState("");
+  const [isNearOrigin, setIsNearOrigin] = useState(false);
   
   // Lista de destinos (permite múltiples)
   const [destinations, setDestinations] = useState([
@@ -240,10 +241,55 @@ const RoutesPanel = ({ routeResult, onCalculate, isRouteActive, onStartRoute, on
   );
 }, [setError]);
 
-  // Calcula la ruta usando OSRM API, solo para el primer destino por simplicidad
+  // Calcula distancia entre dos puntos 
+  function getDistanceMeters(coord1, coord2) {
+  if (!coord1 || !coord2) return Infinity;
+
+  const toRad = (value) => (value * Math.PI) / 180;
+
+  const R = 6371000; // radio de la Tierra en metros
+  const dLat = toRad(coord2.lat - coord1.lat);
+  const dLng = toRad(coord2.lng - coord1.lng);
+
+  const lat1 = toRad(coord1.lat);
+  const lat2 = toRad(coord2.lat);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+}
+  // Obtiene ubi real del usuario cuando haya ruta
+  useEffect(() => {
+  if (!routeResult || !originCoord || !navigator.geolocation) return;
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const current = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      };
+
+      const distance = getDistanceMeters(current, originCoord);
+      setIsNearOrigin(distance <= 300);
+    },
+    () => {
+      setIsNearOrigin(false);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    }
+  );
+}, [routeResult, originCoord]);
+
+  // Calcula la ruta usando OSRM API, varios destinos
   const calculate = async () => {
     const validDestinations = destinations.filter((d) => d.coord);
-    const firstDest = validDestinations[0];
 
     // Valida que exista un origen y al menos un destino seleccionado
     if (!originCoord || validDestinations.length === 0) {
@@ -257,8 +303,15 @@ const RoutesPanel = ({ routeResult, onCalculate, isRouteActive, onStartRoute, on
     const modeConfig = TRANSPORT_MODES.find((t) => t.id === mode);
 
     try {
+    
+    // Construye todos los puntos: origen + destinos
+    const coords = [
+      `${originCoord.lng},${originCoord.lat}`,
+      ...validDestinations.map((d) => `${d.coord.lng},${d.coord.lat}`)
+    ].join(";");
+
       // Construye la Url para pedir la ruta a OSRM
-      const url = `https://router.project-osrm.org/route/v1/${modeConfig.osrm}/${originCoord.lng},${originCoord.lat};${firstDest.coord.lng},${firstDest.coord.lat}?overview=full&geometries=geojson`;
+      const url = `https://router.project-osrm.org/route/v1/${modeConfig.osrm}/${coords}?overview=full&geometries=geojson`;      
       const res = await fetch(url);
       const data = await res.json();
 
@@ -277,8 +330,8 @@ const RoutesPanel = ({ routeResult, onCalculate, isRouteActive, onStartRoute, on
       );
 
       // Prepara el resultado con coordenadas, geometría, distancia y duración
-      const result = { originCoord, destCoord: firstDest.coord, geometry, distance: distKm, duration: durMin };
-      onCalculate(result, originText, firstDest.text, mode, departureTime, isUserLocation);
+      const result = { originCoord, destCoord: validDestinations[validDestinations.length - 1].coord, geometry, distance: distKm, duration: durMin, destinations:validDestinations, legs: route.legs || [], };
+      onCalculate(result, originText, validDestinations.map((d) => d.text).join(" → "), mode, departureTime, isUserLocation);
     } catch {
       setError("No se ha encontrado una ruta para ese modo");
     } finally {
@@ -470,14 +523,41 @@ const RoutesPanel = ({ routeResult, onCalculate, isRouteActive, onStartRoute, on
             </div>
           )}
 
-          {/* Iniciar / finalizar ruta */}
+          {!isRouteActive && !isNearOrigin && (
+            <p className="text-xs text-muted-foreground">
+              Estás lejos del origen seleccionado. Puedes revisar la ruta en vista previa antes de comenzarla.
+            </p>
+          )}
+
           {!isRouteActive ? (
-            <button
-              onClick={onStartRoute}
-                className="h-[44px] rounded-md bg-verde-oscuro text-white text-sm font-medium hover:bg-verde transition-colors duration-150 disabled:opacity-60 flex items-center justify-center gap-2"              >
-              <Play className="w-4 h-4" />
-              Iniciar ruta
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  if (isNearOrigin) {
+                    onStartRoute();
+                  } else {
+                    onPreviewRoute?.();
+                  }
+                }}
+                className={`h-[44px] rounded-md text-white text-sm font-medium transition-colors duration-150 flex items-center justify-center gap-2 ${
+                  isNearOrigin
+                    ? "bg-verde-oscuro hover:bg-verde"
+                    : "bg-azul hover:opacity-90"
+                }`}
+              >
+                <Play className="w-4 h-4" />
+                {isNearOrigin ? "Iniciar ruta" : "Vista previa"}
+              </button>
+
+              
+                <button
+                  onClick={() => onClearRoute?.()}
+                  className="h-[44px] rounded-md border border-border bg-card text-foreground text-sm font-medium hover:bg-secondary transition-colors duration-150 flex items-center justify-center gap-2"
+                >
+                  <X className="w-4 h-4" />
+                  Cerrar vista previa
+                </button>
+            </>
           ) : (
             <button
               onClick={onStopRoute}

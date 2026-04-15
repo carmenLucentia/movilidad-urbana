@@ -161,11 +161,13 @@ const MapView = ({
   isDrawingZone,
   onMapClick,
   onLoadPlaceHours,
+  previewOriginRequest,
 }) => {
   const mapRef = useRef(null);
   const containerRef = useRef(null);
   const layersRef = useRef(L.layerGroup());
 
+  // Inicializa el mapa solo una vez
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -181,15 +183,33 @@ const MapView = ({
     layersRef.current.addTo(map);
     mapRef.current = map;
 
+    // Limpia el mapa al desmontar
     return () => {
       map.remove();
       mapRef.current = null;
     };
   }, []);
 
+// Redibuja todos los elementos visuales del mapa al cambiar datos o estado
+  useEffect(() => {
+  const map = mapRef.current;
+    if (!map || !previewOriginRequest) return;
+
+    // Espera a que la ruta se dibuje y luego hace un desplazamiento suave al origen
+    const timeoutId =  setTimeout(() => {
+    map.flyTo(
+      [previewOriginRequest.lat, previewOriginRequest.lng],
+      previewOriginRequest.zoom || 15,
+      { duration: 1.5 }
+    );
+    }, 100);
+   return () => clearTimeout(timeoutId);
+}, [previewOriginRequest]);
+
+  // Maneja clicks en el mapa para crear marcadores o zonas
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map ) return;
 
     // Detecta clicks en el mapa y los envía al componente padre
     const handler = (e) => onMapClick(e.latlng.lat, e.latlng.lng);
@@ -206,7 +226,6 @@ const MapView = ({
   if (!group || !map) return;
 
     group.clearLayers();
-
 
     const hasActiveRoute = routeResult?.geometry?.length > 0;
     if (!hasActiveRoute) {

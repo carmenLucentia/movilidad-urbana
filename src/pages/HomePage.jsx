@@ -8,10 +8,14 @@ import ZonesPanel from "@/components/ZonesPanel";
 import { Save } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
 import { useUserLocation } from "@/hooks/useUserLocation";
+import AccessDenied from "@/pages/AccessDenied";
 
 const HomePage = () => {
   const authUser = getAuthUser();
   const { fetchApi } = useApi();
+
+  const [canAccessMap, setCanAccessMap] = useState(null);
+  const [accessLoading, setAccessLoading] = useState(true);
 
   const [places, setPlaces] = useState([]);
   const [apiError, setApiError] = useState("");
@@ -29,12 +33,29 @@ const HomePage = () => {
   
   const markersKey = `markers:${authUser}`;
   const [markers, setMarkers] = useState(() => loadJSON(markersKey, []));
-  
+  const [previewOriginRequest, setPreviewOriginRequest] = useState(null);
   const {
     position: liveUserPosition,
     start: startLocation,
     stop: stopLocation,
   } = useUserLocation();
+
+  // Comprbar el acceso desde el back
+  useEffect(() => {
+  async function checkAccess() {
+    try {
+      const data = await fetchApi("/me/access", {}, true);
+      setCanAccessMap(data.mapAccess);
+    } catch (error) {
+      console.error("Error comprobando acceso:", error);
+      setCanAccessMap(false);
+    } finally {
+      setAccessLoading(false);
+    }
+  }
+
+  checkAccess();
+}, [fetchApi]);
 
   // Carga de lugares desde el backend
   useEffect(() => {
@@ -48,10 +69,14 @@ const HomePage = () => {
       }
     }
 
-    cargarPlaces();
-  }, [fetchApi]);
+    if (canAccessMap) {
+      cargarPlaces();
+    }
+  }, [fetchApi, canAccessMap]);
 
   useEffect(() => {
+    if (!canAccessMap) return;
+
     const selRouteKey = `selectedRoute:${authUser}`;
     const selZoneKey = `selectedZone:${authUser}`;
     const selRoute = loadJSON(selRouteKey, null);
@@ -74,11 +99,12 @@ const HomePage = () => {
       setZones([{ points: selZone.points }]);
       localStorage.removeItem(selZoneKey);
     }
-  }, [authUser]);
+  }, [authUser, canAccessMap]);
 
   useEffect(() => {
+    if (!canAccessMap) return;
     saveJSON(markersKey, markers);
-  }, [markers, markersKey]);
+  }, [markers, markersKey, canAccessMap]);
 
   // Manejo de clicks en el mapa para agregar marcadores o puntos de zona
   const handleMapClick = useCallback(
@@ -97,7 +123,31 @@ const HomePage = () => {
     [isDrawingZone]
   );
 
-//muestra los horarios de un lugar
+  // Centra el mapa en el origen de la ruta para mostrar la vista previa
+  const handlePreviewRoute = () => {
+    if (!routeResult?.originCoord) return;
+
+    setPreviewOriginRequest({
+      lat: routeResult.originCoord.lat,
+      lng: routeResult.originCoord.lng,
+      zoom: 15,
+      ts: Date.now(),
+    });
+  };
+
+  // Limpia la ruta actual, el marcador de vista previa y resetea los estados relacionados
+  const handleClearRoute = () => {
+    setRouteResult(null);
+    setRouteOriginLabel("");
+    setRouteDestLabel("");
+    setRouteMode("car");
+    setDepartureTime("");
+    setIsUserLocation(false);
+    setPreviewOriginRequest(null);
+    setIsRouteActive(false); // por seguridad, limpia también el estado de ruta activa
+  };
+
+  //muestra los horarios de un lugar
   const getPlaceHours = async (placeId) => {
   try {
     const data = await fetchApi(`/places/${placeId}/hours`, {}, true);
@@ -203,7 +253,7 @@ const getPointInfo = async (lat, lng) => {
       const am = total % 60;
       llegadaHora = `${String(ah).padStart(2, "0")}:${String(am).padStart(2, "0")}`;
     }
- // Crea objeto de ruta guardada y la almacena en localStorage
+    // Crea objeto de ruta guardada y la almacena en localStorage
     const saved = {
       id: crypto.randomUUID(),
       origen: {
@@ -249,6 +299,18 @@ const stopLiveRoute = () => {
   toast.info("Ruta finalizada");
 };
 
+  if (accessLoading) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <p className="text-sm text-muted-foreground">Comprobando acceso...</p>
+    </div>
+  );
+}
+
+  if (!canAccessMap) {
+    return <AccessDenied />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
@@ -277,9 +339,10 @@ const stopLiveRoute = () => {
             routeResult={routeResult}
             onCalculate={handleRouteCalculated}
             isRouteActive={isRouteActive}
-            
             onStartRoute={startLiveRoute}
             onStopRoute={stopLiveRoute}
+            onPreviewRoute={handlePreviewRoute}
+            onClearRoute={handleClearRoute}
           />
 
           {routeResult && !isRouteActive && (
@@ -327,6 +390,7 @@ const stopLiveRoute = () => {
             isDrawingZone={isDrawingZone}
             onMapClick={handleMapClick}
             onLoadPlaceHours={getPlaceHours}
+            previewOriginRequest={previewOriginRequest}
           />
         
        {selectedPoint && !routeResult &&(
