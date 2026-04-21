@@ -1,45 +1,41 @@
 /**
  * Configuración de estilos para las rutas del mapa.
- * 
+ *
  * Define:
- * - Colores
+ * - Color
  * - Grosor de línea
- * - Tipo de línea
- * 
- * Se usa para diferenciar los modos de transporte:
+ * - Opacidad
+ * - Tipo de trazo
+ *
+ * Modos soportados:
  * - walk → a pie
- * - car → coche
- * - transit → transporte público
+ * - drive → coche
+ * - bike → bicicleta
+ * - drive_service → servicio / variante coche
  */
-
 export const routeStyles = {
-  foot: {
-    color: "#3B82F6",
+  walk: {
+    color: "#16a34a", // verde
     weight: 4,
-    dashArray: "4 6", 
+    dashArray: "4 6",
     opacity: 0.9,
   },
 
-  car: {
-    color: "#06B6D4",
+  drive: {
+    color: "#2563eb", // azul
     weight: 5,
     opacity: 0.9,
   },
-    bike: {
-    color: "#10B981",
+
+  bike: {
+    color: "#f97316", // naranja
     weight: 5,
     opacity: 0.9,
   },
-  bus: {
-    color: "#F59E0B",
+
+  drive_service: {
+    color: "#a855f7", // lila (bus o servicio)
     weight: 5,
-    dashArray: "6 6",
-    opacity: 0.9,
-  },
-  train: {
-    color: "#EF4444",
-    weight: 5,
-    dashArray: "8 6",
     opacity: 0.9,
   },
 };

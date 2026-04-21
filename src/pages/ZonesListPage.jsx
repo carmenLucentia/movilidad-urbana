@@ -40,15 +40,15 @@ const ZonesListPage = () => {
 
         <h1 className="text-xl font-bold text-foreground flex items-center gap-2 mb-6">
           <Pentagon className="w-5 h-5 text-accent" />
-          Zonas guardadas
+          Zonas de control de aforo
         </h1>
 
         {zones.length === 0 ? (
           <div className="text-center py-16">
             <Pentagon className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-            <p className="text-muted-foreground">Aún no tienes zonas guardadas.</p>
+            <p className="text-muted-foreground">No hay zonas configuradas.</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Dibuja una zona en el mapa para guardarla.
+              Define una zona en el mapa para comenzar a analizar la ocupación y el flujo de personas.
             </p>
           </div>
         ) : (

@@ -4,10 +4,7 @@ import { toast } from "sonner";
 import Header from "@/components/Header";
 import MapView from "@/components/MapView";
 import RoutesPanel from "@/components/RoutesPanel";
-import ZonesPanel from "@/components/ZonesPanel";
-import { Save } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
-import { useUserLocation } from "@/hooks/useUserLocation";
 import AccessDenied from "@/pages/AccessDenied";
 
 const HomePage = () => {
@@ -19,26 +16,23 @@ const HomePage = () => {
 
   const [places, setPlaces] = useState([]);
   const [apiError, setApiError] = useState("");
-  const [routeResult, setRouteResult] = useState(null);
-  const [routeOriginLabel, setRouteOriginLabel] = useState("");
-  const [routeDestLabel, setRouteDestLabel] = useState("");
-  const [routeMode, setRouteMode] = useState("car");
-  const [departureTime, setDepartureTime] = useState("");
   const [zones, setZones] = useState([]);
   const [isDrawingZone, setIsDrawingZone] = useState(false);
   const [tempZone, setTempZone] = useState([]);
-  const [isRouteActive, setIsRouteActive] = useState(false);
-  const [isUserLocation, setIsUserLocation] = useState(false);
+
+  const [routeMode, setRouteMode] = useState("drive");
   const [selectedPoint, setSelectedPoint] = useState(null);
+  const [routeResult, setRouteResult] = useState(null);
   
-  const markersKey = `markers:${authUser}`;
-  const [markers, setMarkers] = useState(() => loadJSON(markersKey, []));
-  const [previewOriginRequest, setPreviewOriginRequest] = useState(null);
-  const {
-    position: liveUserPosition,
-    start: startLocation,
-    stop: stopLocation,
-  } = useUserLocation();
+  const [allowedZones, setAllowedZones] = useState([]);
+
+  const [itineraries, setItineraries] = useState([]);
+  const [itinerariesLoading, setItinerariesLoading] = useState(false);
+  const [itinerariesError, setItinerariesError] = useState(""); 
+  const [itineraryStops, setItineraryStops] = useState([]);
+  const [itineraryLegs, setItineraryLegs] = useState([]);
+
+  const [selectedCity, setSelectedCity] = useState("alicante");
 
   // Comprbar el acceso desde el back
   useEffect(() => {
@@ -46,6 +40,8 @@ const HomePage = () => {
     try {
       const data = await fetchApi("/me/access", {}, true);
       setCanAccessMap(data.mapAccess);
+      setAllowedZones(data.allowedZones || []);
+      
     } catch (error) {
       console.error("Error comprobando acceso:", error);
       setCanAccessMap(false);
@@ -53,10 +49,151 @@ const HomePage = () => {
       setAccessLoading(false);
     }
   }
-
   checkAccess();
 }, [fetchApi]);
 
+// cargar itinerarios desde el back
+const loadItineraries = async (date, time, mode) => {
+  try {
+    setItinerariesLoading(true);
+    setItinerariesError("");
+    setRouteResult(null);
+    setItineraryStops([]);
+    
+    const now = new Date();
+    const fechaInicio = date ? date.replaceAll("-", "") : `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+    const horaInicio = time ? time.split(":")[0] : String(now.getHours()).padStart(2, "0");
+  
+    const params = new URLSearchParams({
+      city: selectedCity,
+      fecha_inicio: fechaInicio,
+      hora_inicio: horaInicio,
+      max_itineraries: "30",
+    });
+
+    if (mode) {
+      params.append("allowed_modes", mode);
+    }
+
+    const data = await fetchApi(
+      `/itineraries?${params.toString()}`,
+      {},
+      true
+    );
+
+    setItineraries(data.itineraries || []);
+    setItineraryLegs(data.legs || []);
+    console.log("PRIMER ITINERARIO:", data?.itineraries?.[0]);
+    console.log("LEGS:", data?.legs);
+  } catch (err) {
+    console.error("Error cargando itinerarios:", err);
+    setItinerariesError("Error al cargar itinerarios. Inténtalo más tarde");
+    setItineraries([]);
+  } finally {
+    setItinerariesLoading(false);
+  }
+};
+
+const normalizeText = (text) =>
+  (text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+
+const handleSelectItinerary = async (itinerary) => {
+  try {
+    if (!itinerary?.visit_order_names) {
+      toast.error("El itinerario no tiene lugares válidos");
+      return;
+    }
+    const names = itinerary.visit_order_names
+      .split(" → ")
+      .map((n) => n.trim())
+      .filter(Boolean);
+
+    const matchedPlaces = names
+      .map((name) =>
+        places.find(
+          (p) => normalizeText(p.name) === normalizeText(name)
+        )
+      )
+      .filter(Boolean);
+
+    if (matchedPlaces.length < 2) {
+      toast.error("No se pudieron asociar los lugares del itinerario con el mapa");
+      return;
+    }
+
+    setItineraryStops(
+      matchedPlaces.map((p) => ({
+        lat: p.lat,
+        lng: p.lon,
+        name: p.name,
+      }))
+    );
+
+    const segments = [];
+    let totalDistanceM = 0;
+    let totalDurationS = 0;
+
+    for (let i = 0; i < matchedPlaces.length - 1; i++) {
+      const fromPlace = matchedPlaces[i];
+      const toPlace = matchedPlaces[i + 1];
+
+      const displayMode = itinerary.modes_used?.[i] || "drive";
+      const apiMode = displayMode === "drive" ? "drive_service" : displayMode;
+
+      const routes = await fetchApi(
+        `/routes/search?from_place_id=${fromPlace.place_id}&to_place_id=${toPlace.place_id}&mode=${apiMode}`,
+        {},
+        true
+      );
+
+      if (!routes || routes.length === 0) continue;
+
+      const route = routes[0];
+
+      if (!route?.geometry?.coordinates?.length) continue;
+
+      segments.push({
+        ...route,
+        mode: displayMode,
+      });
+
+      totalDistanceM += route.cost_distance_m || 0;
+      totalDurationS += route.cost_time_s || 0;
+          }
+
+
+if (!segments.length) {
+  toast.error("No se pudo pintar el itinerario");
+  return;
+}
+
+    const firstPlace = matchedPlaces[0];
+    const lastPlace = matchedPlaces[matchedPlaces.length - 1];
+
+    const result = {
+      segments: segments.map((s) => ({
+        geometry: s.geometry,
+        mode: s.mode || "drive",
+      })),
+      originCoord: { lat: firstPlace.lat, lng: firstPlace.lon },
+      destCoord: { lat: lastPlace.lat, lng: lastPlace.lon },
+      distance: Math.round((totalDistanceM / 1000) * 10) / 10,
+      duration: Math.round(totalDurationS / 60),
+    };
+
+    handleRouteCalculated(result, itinerary.modes_used?.[0] || "drive");
+
+    toast.success("Itinerario cargado en el mapa");
+  } catch (error) {
+    console.error("Error pintando itinerario:", error);
+    toast.error("Error al pintar el itinerario");
+  }
+};
   // Carga de lugares desde el backend
   useEffect(() => {
     async function cargarPlaces() {
@@ -77,88 +214,15 @@ const HomePage = () => {
   useEffect(() => {
     if (!canAccessMap) return;
 
-    const selRouteKey = `selectedRoute:${authUser}`;
     const selZoneKey = `selectedZone:${authUser}`;
-    const selRoute = loadJSON(selRouteKey, null);
     const selZone = loadJSON(selZoneKey, null);
 
-    if (selRoute) {
-      setRouteResult({
-        originCoord: { lat: selRoute.origen.lat, lng: selRoute.origen.lng },
-        destCoord: { lat: selRoute.destino.lat, lng: selRoute.destino.lng },
-        geometry: selRoute.geometry,
-        distance: selRoute.distanciaKm,
-        duration: selRoute.duracionMin,
-      });
-      setRouteOriginLabel(selRoute.origen.label);
-      setRouteDestLabel(selRoute.destino.label);
-      localStorage.removeItem(selRouteKey);
-    }
 
     if (selZone) {
       setZones([{ points: selZone.points }]);
       localStorage.removeItem(selZoneKey);
     }
   }, [authUser, canAccessMap]);
-
-  useEffect(() => {
-    if (!canAccessMap) return;
-    saveJSON(markersKey, markers);
-  }, [markers, markersKey, canAccessMap]);
-
-  // Manejo de clicks en el mapa para agregar marcadores o puntos de zona
-  const handleMapClick = useCallback(
-    async (lat, lng) => {
-      if (isDrawingZone) {
-        setTempZone((prev) => [...prev, { lat, lng }]);
-      } else {
-        const point = {lat, lng};
-        setMarkers([point]);
-        
-        
-        const pointInfo = await getPointInfo(lat, lng);
-        setSelectedPoint(pointInfo);
-      }
-    },
-    [isDrawingZone]
-  );
-
-  // Centra el mapa en el origen de la ruta para mostrar la vista previa
-  const handlePreviewRoute = () => {
-    if (!routeResult?.originCoord) return;
-
-    setPreviewOriginRequest({
-      lat: routeResult.originCoord.lat,
-      lng: routeResult.originCoord.lng,
-      zoom: 15,
-      ts: Date.now(),
-    });
-  };
-
-  // Limpia la ruta actual, el marcador de vista previa y resetea los estados relacionados
-  const handleClearRoute = () => {
-    setRouteResult(null);
-    setRouteOriginLabel("");
-    setRouteDestLabel("");
-    setRouteMode("car");
-    setDepartureTime("");
-    setIsUserLocation(false);
-    setPreviewOriginRequest(null);
-    setIsRouteActive(false); // por seguridad, limpia también el estado de ruta activa
-  };
-
-  //muestra los horarios de un lugar
-  const getPlaceHours = async (placeId) => {
-  try {
-    const data = await fetchApi(`/places/${placeId}/hours`, {}, true);
-    console.log("placeId:", placeId);
-    console.log("hours:", data);
-    return data;
-  } catch (error) {
-    console.error("Error al cargar horarios:", error);
-    return [];
-  }
-};
 
 const getPointInfo = async (lat, lng) => {
   try {
@@ -207,97 +271,37 @@ const getPointInfo = async (lat, lng) => {
   }
 };
 
-  const closeZone = () => {
-    if (tempZone.length >= 3) {
-      const defaultName = `Zona ${zones.length + 1}`;
-      const name = prompt("Nombre de la zona:", defaultName) || defaultName;
 
-      const savedZone = {
-        id: crypto.randomUUID(),
-        nombre: name,
-        points: tempZone,
-        fechaISO: new Date().toISOString(),
-      };
-
-      const zonesKey = `zonas:${authUser}`;
-      const existing = loadJSON(zonesKey, []);
-      saveJSON(zonesKey, [...existing, savedZone]);
-
-      setZones((prev) => [...prev, { points: tempZone }]);
-      toast.success("Zona guardada");
+// Manejo de clicks en el mapa para agregar marcadores o puntos de zona
+  const handleMapClick = useCallback(
+  async (lat, lng) => {
+    if (isDrawingZone) {
+      setTempZone((prev) => [...prev, { lat, lng }]);
+    } else {
+      const pointInfo = await getPointInfo(lat, lng);
+      setSelectedPoint(pointInfo);
     }
+  },
+  [isDrawingZone]
+);
 
-    setTempZone([]);
-    setIsDrawingZone(false);
-  };
- 
-  // Maneja resultado de cálculo de ruta desde el panel
-  const handleRouteCalculated = (result, originLabel, destLabel, mode, depTime, userLocation) => {
+  //muestra los horarios de un lugar
+  const getPlaceHours = async (placeId) => {
+  try {
+    const data = await fetchApi(`/places/${placeId}/hours`, {}, true);
+    
+    return data;
+  } catch (error) {
+    console.error("Error al cargar horarios:", error);
+    return [];
+  }
+};
+
+  const handleRouteCalculated = (result, mode ) => {
     setRouteResult(result);
-    setRouteOriginLabel(originLabel);
-    setRouteDestLabel(destLabel);
     setRouteMode(mode);
-    setDepartureTime(depTime);
-    setIsUserLocation(userLocation);
   };
 
-  const saveRoute = () => {
-    if (!routeResult) return;
-
-    let llegadaHora;
-
-    if (departureTime && routeResult.duration > 0) {
-      const [h, m] = departureTime.split(":").map(Number);
-      const total = h * 60 + m + routeResult.duration;
-      const ah = Math.floor(total / 60) % 24;
-      const am = total % 60;
-      llegadaHora = `${String(ah).padStart(2, "0")}:${String(am).padStart(2, "0")}`;
-    }
-    // Crea objeto de ruta guardada y la almacena en localStorage
-    const saved = {
-      id: crypto.randomUUID(),
-      origen: {
-        label: routeOriginLabel,
-        lat: routeResult.originCoord.lat,
-        lng: routeResult.originCoord.lng,
-      },
-      destino: {
-        label: routeDestLabel,
-        lat: routeResult.destCoord.lat,
-        lng: routeResult.destCoord.lng,
-      },
-      modo: routeMode,
-      distanciaKm: routeResult.distance,
-      duracionMin: routeResult.duration,
-      salidaHora: departureTime || undefined,
-      llegadaHora,
-      geometry: routeResult.geometry,
-      fechaISO: new Date().toISOString(),
-    };
-
-    const key = `rutas:${authUser}`;
-    const existing = loadJSON(key, []);
-    saveJSON(key, [...existing, saved]);
-    toast.success("Ruta guardada");
-  };
-  
-  const startLiveRoute = () => {
-  startLocation();
-  setIsRouteActive(true);
-};
-
-const stopLiveRoute = () => {
-  stopLocation();
-  
-  setIsRouteActive(false);
-  setRouteResult(null);
-  setRouteOriginLabel("");
-  setRouteDestLabel("");
-  setRouteMode("car");
-  setDepartureTime("");
-  setIsUserLocation(false);
-  toast.info("Ruta finalizada");
-};
 
   if (accessLoading) {
   return (
@@ -336,61 +340,30 @@ const stopLiveRoute = () => {
         <aside className="w-[360px] shrink-0 bg-card border border-border rounded-lg p-5 flex flex-col gap-6 overflow-y-auto shadow-[var(--shadow-card)]">
         
           <RoutesPanel
-            routeResult={routeResult}
-            onCalculate={handleRouteCalculated}
-            isRouteActive={isRouteActive}
-            onStartRoute={startLiveRoute}
-            onStopRoute={stopLiveRoute}
-            onPreviewRoute={handlePreviewRoute}
-            onClearRoute={handleClearRoute}
-          />
-
-          {routeResult && !isRouteActive && (
-            <button
-              onClick={saveRoute}
-              className="h-[44px] rounded-md bg-accent/10 border border-accent/30 text-accent text-sm font-medium hover:bg-accent/20 transition-colors flex items-center justify-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              Guardar ruta
-            </button>
-          )}
-
-          <div className="h-px bg-border" />
-
-          <ZonesPanel
-            zones={zones}
-            isDrawing={isDrawingZone}
-            tempZone={tempZone}
-            onStartDrawing={() => {
-              setIsDrawingZone(true);
-              setTempZone([]);
-            }}
-            onCloseZone={closeZone}
-            onCancel={() => {
-              setIsDrawingZone(false);
-              setTempZone([]);
-            }}
-            onRemoveZone={(i) => setZones((prev) => prev.filter((_, idx) => idx !== i))}
+            selectedCity={selectedCity}
+            onChangeCity={setSelectedCity}
+            itineraries={itineraries}
+            itineraryLegs={itineraryLegs}
+            itinerariesLoading={itinerariesLoading}
+            itinerariesError={itinerariesError}
+            onLoadItineraries={loadItineraries}
+            onSelectItinerary={handleSelectItinerary}
           />
         </aside>
 
         <div className="flex-1 bg-card border border-border rounded-lg shadow-[var(--shadow-card)] overflow-hidden relative">
           <MapView
-            markers={markers}
             places={places}   
             routeResult={routeResult}
-            originText={routeOriginLabel}
-            destText={routeDestLabel}
-            isUserLocation={isUserLocation}
-            liveUserPosition={liveUserPosition}
-            isRouteActive={isRouteActive}
             routeMode={routeMode}       
             zones={zones}
             tempZone={tempZone}
             isDrawingZone={isDrawingZone}
             onMapClick={handleMapClick}
             onLoadPlaceHours={getPlaceHours}
-            previewOriginRequest={previewOriginRequest}
+            allowedZones={allowedZones} 
+            itineraryStops={itineraryStops}
+
           />
         
        {selectedPoint && !routeResult &&(
@@ -410,9 +383,8 @@ const stopLiveRoute = () => {
             <button
               onClick={() => {
                 setSelectedPoint(null);
-                setMarkers([]);
               }}
-              className="ml-a text-base text-muted-foreground hover:text-destructive transition-colors"
+              className="ml-auto text-base text-muted-foreground hover:text-destructive transition-colors"
             >
               ✕
             </button>
