@@ -6,9 +6,9 @@ import { auth } from "@/lib/firebase";
 import logo from "@/assets/logo-mobility.png";
 
 const NAV_ITEMS = [
-  { label: "Mapa", path: "/mapa" },
-  { label: "Rutas", path: "/rutas" },
-  { label: "Zonas", path: "/zonas" },
+  { label: "Gestión de itinerarios", path: "/mapa" },
+  // { label: "Rutas", path: "/rutas" },
+  { label: "Gestión de aforos", path: "/zonas" },
 ];
 
 const Header = () => {

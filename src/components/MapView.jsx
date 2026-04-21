@@ -1,7 +1,16 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { renderRouteLayer } from "@/components/routes/RouteLayer";
+import { useApi } from "@/hooks/useApi";
+import { routeStyles } from "@/utils/routeStyles";
+
+/** 
+ * DEBUG:
+ * Pintar manualmente los grafos desde back para comprobar visualmente
+ * si la ruta calculada sigue el grafo esperado.
+ * false = desactivado
+ */
+const SHOW_GRAPH_DEBUG = false;
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -9,6 +18,34 @@ L.Icon.Default.mergeOptions({
   iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
 });
+
+// marcador circular con letra para identificar paradas del itinerario
+function getLetterMarkerIcon(letter) {
+  return L.divIcon({
+    className: "",
+    html: `
+      <div style="
+        width: 28px;
+        height: 28px;
+        border-radius: 9999px;
+        background: #2563eb;
+        color: white;
+        font-weight: 700;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid white;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+      ">
+        ${letter}
+      </div>
+    `,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -14],
+  });
+}
 
 // Formatea una hora tipo "07:30:00" → "7:30"
 function formatHour(hour) {
@@ -99,7 +136,7 @@ function isDateInRange(validFrom, validTo) {
   return true;
 }
 
-// Genera el HTML del horario SOLO para el día actual
+// Genera el texto de horarios visibles en el popup para el día actual
 function formatTodayPlaceHours(hours) {
   if (!hours || hours.length === 0) {
     return "<div>Sin horarios disponibles</div>";
@@ -147,22 +184,18 @@ function formatTodayPlaceHours(hours) {
 
 // Componente principal del mapa
 const MapView = ({
-  markers,
   places,
   routeResult,
-  originText,
-  destText,
-  isUserLocation,
-  liveUserPosition,
-  isRouteActive,
   routeMode,
   zones,
   tempZone,
   isDrawingZone,
   onMapClick,
   onLoadPlaceHours,
-  previewOriginRequest,
+  itineraryStops,
+  
 }) => {
+  const { fetchApi } = useApi();
   const mapRef = useRef(null);
   const containerRef = useRef(null);
   const layersRef = useRef(L.layerGroup());
@@ -190,21 +223,53 @@ const MapView = ({
     };
   }, []);
 
-// Redibuja todos los elementos visuales del mapa al cambiar datos o estado
-  useEffect(() => {
-  const map = mapRef.current;
-    if (!map || !previewOriginRequest) return;
+// Cargar y pintar los grafos desde backend (solo debug)
+useEffect(() => {
+  if (!SHOW_GRAPH_DEBUG) return;
 
-    // Espera a que la ruta se dibuje y luego hace un desplazamiento suave al origen
-    const timeoutId =  setTimeout(() => {
-    map.flyTo(
-      [previewOriginRequest.lat, previewOriginRequest.lng],
-      previewOriginRequest.zoom || 15,
-      { duration: 1.5 }
-    );
-    }, 100);
-   return () => clearTimeout(timeoutId);
-}, [previewOriginRequest]);
+  const map = mapRef.current;
+  if (!map) return;
+
+  const cities = ["alicante", "elche", "valencia", "peñiscola"];
+    let graphLayers = [];
+
+  const loadGraphs = async () => {
+    try {
+      for (const city of cities) {
+        const geojson = await fetchApi(`/routes/graph?city=${city}`, {}, true);
+
+        const layer = L.geoJSON(geojson, {
+          style: {
+            color: "#2563eb",
+            weight: 1.5,
+            opacity: 0.6,
+          },
+        });
+
+        layer.addTo(map);
+        graphLayers.push(layer);
+      }
+
+      const group = L.featureGroup(graphLayers);
+      const bounds = group.getBounds();
+
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+      }
+    } catch (err) {
+      console.error("Error cargando grafos desde la api:", err);
+    }
+  };
+
+  loadGraphs();
+
+  return () => {
+    graphLayers.forEach((layer) => {
+      map.removeLayer(layer);
+    });
+  };
+}, [fetchApi]);
+
 
   // Maneja clicks en el mapa para crear marcadores o zonas
   useEffect(() => {
@@ -226,18 +291,7 @@ const MapView = ({
   if (!group || !map) return;
 
     group.clearLayers();
-
-    const hasActiveRoute = routeResult?.geometry?.length > 0;
-    if (!hasActiveRoute) {
-    // Marcadores creados manualmente por el usuario
-    if (markers.length > 0) {
-      const marker = markers[0];
-
-      L.marker([marker.lat, marker.lng])
-        .bindPopup("Ubicación seleccionada")
-        .addTo(group);
-    }
-
+  
   // Lugares cargados desde backend
   places?.forEach((place) => {
     const marker = L.marker([place.lat, place.lon]).addTo(group);
@@ -264,21 +318,45 @@ const MapView = ({
       `);
     });
   });
+
+
+  // Pinta los segmentos de ruta devueltos por backend y ajusta el mapa
+ if (routeResult?.segments?.length) {
+  const allLayers = [];
+
+  routeResult.segments.forEach((segment) => {
+    if (!segment?.geometry?.coordinates?.length) return;
+
+    const style = routeStyles[segment.mode] || routeStyles.drive;
+
+    const layer = L.geoJSON(segment.geometry, {
+      style,
+    }).addTo(group);
+
+    allLayers.push(layer);
+  });
+
+  if (allLayers.length) {
+    const featureGroup = L.featureGroup(allLayers);
+    const bounds = featureGroup.getBounds();
+
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [40, 40] });
+    }
+  }
 }
 
-  // Ruta calculada
-  if (routeResult?.geometry?.length) {
-    renderRouteLayer(
-      group,
-      map,
-      routeResult,
-      originText,
-      destText,
-      isUserLocation,
-      liveUserPosition,
-      isRouteActive,
-      routeMode
-    );
+// Añade marcadores A, B, C... para las paradas del itinerario seleccionado
+  if (Array.isArray(itineraryStops) && itineraryStops.length > 0) {
+    itineraryStops.forEach((stop, index) => {
+      const letter = String.fromCharCode(65 + index); // A, B, C...
+      L.marker([stop.lat, stop.lng], {
+        icon: getLetterMarkerIcon(letter),
+        zIndexOffset: 1000,
+      })
+        .bindPopup(`${letter}: ${stop.name}`)
+        .addTo(group);
+    });
   }
 
   // Zonas guardadas
@@ -307,7 +385,7 @@ const MapView = ({
       }
     ).addTo(group);
   }
-}, [markers, places, routeResult, originText, destText, isUserLocation, liveUserPosition, isRouteActive, routeMode, zones, tempZone, isDrawingZone, onLoadPlaceHours,]);
+}, [places, routeResult, routeMode, zones, tempZone, isDrawingZone, onLoadPlaceHours, itineraryStops]);
   return <div ref={containerRef} className="w-full h-full min-h-[400px] rounded-lg" />;
 };
 
