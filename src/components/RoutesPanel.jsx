@@ -84,6 +84,17 @@ const RoutesPanel = ({ selectedCity, onChangeCity, itineraries, itineraryLegs, i
     return text.slice(0, 5);
   };
 
+  // Formatea duración en segundos a "X h Y min"
+  const formatDuration = (seconds) => {
+    const totalMinutes = Math.round((seconds || 0) / 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    return hours > 0
+      ? `${hours} h ${minutes > 0 ? `${minutes} min` : ""}`
+      : `${minutes} min`;
+  };
+
   //ordenar ranking: duración total de menor a mayor
   const sortedItineraries = [...(itineraries || [])].sort(
     (a, b) => (a.total_time_min || 999999) - (b.total_time_min || 999999)
@@ -273,7 +284,7 @@ const RoutesPanel = ({ selectedCity, onChangeCity, itineraries, itineraryLegs, i
                         </p>
 
                         <p className="text-xs text-muted-foreground mt-1">
-                          ⏱ {Math.round((detailLegs[index]?.cost_time_s || 0) / 60)} min
+                          ⏱ {formatDuration(detailLegs[index]?.cost_time_s)}
                         </p>
                       </div>
                     </div>
@@ -311,7 +322,7 @@ const RoutesPanel = ({ selectedCity, onChangeCity, itineraries, itineraryLegs, i
 
                   const stopsCount = getItineraryStops(it).length;
 
-                  / Se muestran todos los modos usados en el itinerario sin repetir valores.
+                  // Se muestran todos los modos usados en el itinerario sin repetir valores.
                   const modesText =
                     Array.isArray(it.modes_used) && it.modes_used.length > 0
                       ? [...new Set(it.modes_used)]
