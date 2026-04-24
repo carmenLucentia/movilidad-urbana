@@ -82,8 +82,8 @@ const loadItineraries = async (date, time, modes, selectedPlaceIds) => {
     : `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
    
     const horaInicio = time 
-    ? time.split(":")[0] 
-    : String(now.getHours()).padStart(2, "0");
+    ? time
+    : `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   
     const params = new URLSearchParams({
       city: selectedCity,
@@ -524,11 +524,23 @@ const getPointInfo = async (lat, lng) => {
                 .filter(Boolean)
                 .map((stop, index, arr) => {
                   const leg = selectedLegs[index];
-                const place = places.find(
+                const nextLeg = selectedLegs[index + 1];
+
+                const travelMinutes =
+                  leg?.visit_end_time && nextLeg?.arrival_time
+                    ? Math.max(
+                        0,
+                        Math.round(
+                          (new Date(nextLeg.arrival_time) - new Date(leg.visit_end_time)) / 60000
+                        )
+                      )
+                    : 0;
+                
+                  const place = places.find(
                 (p) => p.name?.toLowerCase().trim() === stop.toLowerCase().trim()
               );
 
-              const mode = selectedItineraryDetail.modes_used?.[index] || "bike";
+              const mode = nextLeg?.mode_selected || selectedItineraryDetail.modes_used?.[index] || "bike";
               const Icon = MODE_ICONS[mode] || Bike;
               const colorClass = MODE_COLORS[mode] || "text-azul border-azul";
 
@@ -603,7 +615,9 @@ const getPointInfo = async (lat, lng) => {
                       <Icon className={`w-5 h-5 mb-1 ${colorClass.split(" ")[0]}`} />
                       <div className={`w-full border-t-2 border-dotted mb-1 ${colorClass.split(" ")[1]}`} />
                       <span>
-                        {Math.round((selectedLegs[index + 1]?.cost_time_s || 0) / 60)} min
+                        {travelMinutes < 60
+                          ? `${travelMinutes} min`
+                          : `${Math.floor(travelMinutes / 60)} h ${travelMinutes % 60} min`}                      
                       </span>
 
                       <span>

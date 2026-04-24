@@ -84,9 +84,16 @@ const RoutesPanel = ({ selectedCity, onChangeCity, allowedZones, itineraries, it
             (zone) => zone.toLowerCase() === city.value.toLowerCase()
           )
         );
+  
+  const normalizeText = (text = "") =>
+  text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
   // Lugares de la ciudad seleccionada
   const cityPlaces = (places || []).filter((place) =>
-    place.name?.toLowerCase().includes(selectedCity?.toLowerCase())
+    normalizeText(place.name).includes(normalizeText(selectedCity))
   );
 
   //marcar o desmarcar lugar de ciudad
