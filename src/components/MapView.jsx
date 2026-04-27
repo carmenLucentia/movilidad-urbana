@@ -138,12 +138,13 @@ function isDateInRange(validFrom, validTo) {
 }
 
 // Genera el texto de horarios visibles en el popup para el día actual
-function formatTodayPlaceHours(hours) {
+function formatTodayPlaceHours(hours, selectedDate) {
   if (!hours || hours.length === 0) {
     return "<div>Sin horarios disponibles</div>";
   }
 
-  const jsDay = new Date().getDay();
+  const dateToUse = selectedDate ? new Date(selectedDate) : new Date();
+  const jsDay = dateToUse.getDay();
   const currentDow = jsDay === 0 ? 6 : jsDay - 1;
 
   // Filtra solo los horarios del día actual y válidos por fecha
@@ -158,7 +159,7 @@ function formatTodayPlaceHours(hours) {
 
   // marcados como cerrado
   if (todayHours.every((h) => h.closed)) {
-    return "<div>Hoy: Cerrado</div>";
+    return `<div>${selectedDate ? "Ese día" : "Hoy"}: Cerrado</div>`;
   }
 
   // Filtra solo los tramos abiertos válidos
@@ -180,7 +181,7 @@ function formatTodayPlaceHours(hours) {
     .map((r) => `${formatHour(r.start)} - ${formatHour(r.end)}`)
     .join(", ");
 
-  return `<div>Hoy: ${text}</div>`;
+  return `<div>${selectedDate ? "Ese día" : "Hoy"}: ${text}</div>`;
 }
 
 // Componente principal del mapa
@@ -195,6 +196,7 @@ const MapView = ({
   onLoadPlaceHours,
   itineraryStops,
   selectedCity,
+  selectedDate,
   
 }) => {
   const { fetchApi } = useApi();
@@ -328,7 +330,7 @@ useEffect(() => {
 
     marker.on("popupopen", async () => {
       const hours = await onLoadPlaceHours?.(place.place_id);
-      const hoursHtml = formatTodayPlaceHours(hours);
+      const hoursHtml = formatTodayPlaceHours(hours, selectedDate);
 
       marker.setPopupContent(`
         <div>
@@ -363,23 +365,16 @@ useEffect(() => {
     const bounds = featureGroup.getBounds();
 
     if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [40, 40] });
-    }
-  }
-}
-
-// Añade marcadores A, B, C... para las paradas del itinerario seleccionado
-  if (Array.isArray(itineraryStops) && itineraryStops.length > 0) {
-    itineraryStops.forEach((stop, index) => {
-      const letter = String.fromCharCode(65 + index); // A, B, C...
-      L.marker([stop.lat, stop.lng], {
-        icon: getLetterMarkerIcon(letter),
-        zIndexOffset: 1000,
-      })
-        .bindPopup(`${letter}: ${stop.name}`)
-        .addTo(group);
+    map.fitBounds(bounds, {
+      paddingTopLeft: [80, 80],
+      paddingBottomRight: [80, 360],
+      maxZoom: 15,
     });
   }
+}
+}
+
+
 
   // Zonas guardadas
   zones.forEach((zone) => {

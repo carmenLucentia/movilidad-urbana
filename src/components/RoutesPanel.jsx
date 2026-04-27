@@ -24,7 +24,7 @@ const MODE_LABELS = {
   * permite elegir ciudad, modos, fecha y hora
   * lanza la búsqueda de itinerarios
  */
-const RoutesPanel = ({ selectedCity, onChangeCity, allowedZones, itineraries, itineraryLegs, itinerariesLoading, itinerariesError, onLoadItineraries, onSelectItinerary, places, selectedPlaceIds, onChangeSelectedPlaceIds }) => {
+const RoutesPanel = ({ selectedCity, onChangeCity, allowedZones, itineraries, itineraryLegs, itinerariesLoading, itinerariesError, onLoadItineraries, onSelectItinerary, places, selectedPlaceIds, onChangeSelectedPlaceIds, onChangeRouteDate, }) => {
   const [modes, setModes] = useState(["good"]);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
@@ -272,6 +272,7 @@ const RoutesPanel = ({ selectedCity, onChangeCity, allowedZones, itineraries, it
               min={new Date().toISOString().split("T")[0]}
               onChange={(e) => {
                 setDate(e.target.value);
+                onChangeRouteDate?.(e.target.value);
                 setValidationError("");
               }}
               className="h-[44px] rounded-md border border-input bg-card px-3 text-sm text-foreground"

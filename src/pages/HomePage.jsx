@@ -47,7 +47,7 @@ const HomePage = () => {
   
   // Ciudad actualmente seleccionada en el panel.
   const [selectedCity, setSelectedCity] = useState("");
-
+  const [selectedRouteDate, setSelectedRouteDate] = useState("");
   // Comprbar el acceso desde el back y zonas permitidas
   useEffect(() => {
   async function checkAccess() {
@@ -459,7 +459,8 @@ const getPointInfo = async (lat, lng) => {
             onSelectItinerary={handleSelectItinerary}
             places={places}
             selectedPlaceIds={selectedPlaceIds}
-            onChangeSelectedPlaceIds={setSelectedPlaceIds}  
+            onChangeSelectedPlaceIds={setSelectedPlaceIds}
+            onChangeRouteDate={setSelectedRouteDate}  
           />
         </aside>
 
@@ -476,6 +477,7 @@ const getPointInfo = async (lat, lng) => {
             allowedZones={allowedZones} 
             itineraryStops={itineraryStops}
             selectedCity={selectedCity}
+            selectedDate={selectedRouteDate}
 
           />
         {/* tarjeta detalle itinerario horizontal */}
@@ -485,7 +487,7 @@ const getPointInfo = async (lat, lng) => {
             .sort((a, b) => (a.leg_seq || 0) - (b.leg_seq || 0));
 
             return (
-          <div className="absolute left-4 right-4 bottom-4 z-[1000] bg-card border border-border rounded-2xl shadow-xl p-5">
+          <div className="absolute left-4 right-4 bottom-4 z-[1000] bg-card border border-border rounded-2xl shadow-xl p-4 max-h-[430px] overflow-y-auto">
 
             {/* HEADER */}
             <div className="flex items-start justify-between gap-4 mb-4">
@@ -554,7 +556,7 @@ const getPointInfo = async (lat, lng) => {
                     <div className="relative">
                       <img
                         src={place?.img || "/placeholder-place.jpg"}
-                        className="w-full h-24 rounded-lg object-cover"
+                        className="w-full h-20 rounded-lg object-cover"
                       />
 
                       <div className="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-verde-oscuro text-white flex items-center justify-center text-xs font-bold">
