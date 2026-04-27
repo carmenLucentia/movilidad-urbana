@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Route as RouteIcon, Car, Footprints, Bike, BusFront, Sparkles, Bookmark } from "lucide-react";
+import { useState } from "react";
+import { Route as RouteIcon, Car, Footprints, Bike, BusFront, Sparkles } from "lucide-react";
 
 // Modulos de transporte disponibles 
 // automático: busca los mejores itinerarios sin filtrar por transporte.
@@ -28,6 +28,7 @@ const RoutesPanel = ({ selectedCity, onChangeCity, allowedZones, itineraries, it
   const [modes, setModes] = useState(["good"]);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  const [validationError, setValidationError] = useState("");
 
   const NORMAL_MODES = ["drive", "walk", "bike", "drive_service"];
 
@@ -156,7 +157,23 @@ const RoutesPanel = ({ selectedCity, onChangeCity, allowedZones, itineraries, it
   // Búsqueda solo si hay fecha y hora
   // No hay: botón desactivado
   const handleSearchItineraries = () => {
+    setValidationError("");
+
     if (!selectedCity || !date || !time) {
+      setValidationError("Selecciona una ciudad, fecha y hora.");
+      return;
+    }
+
+    if (selectedPlaceIds.length < 2) {
+      setValidationError("Selecciona al menos 2 lugares.");
+      return;
+    }
+
+    const now = new Date();
+    const selectedDateTime = new Date(`${date}T${time}`);
+
+    if (selectedDateTime < now) {
+      setValidationError("La fecha y hora seleccionadas no son válidas.");
       return;
     }
 
@@ -252,7 +269,11 @@ const RoutesPanel = ({ selectedCity, onChangeCity, allowedZones, itineraries, it
             <input
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
+              onChange={(e) => {
+                setDate(e.target.value);
+                setValidationError("");
+              }}
               className="h-[44px] rounded-md border border-input bg-card px-3 text-sm text-foreground"
             />
           </div>
@@ -266,7 +287,10 @@ const RoutesPanel = ({ selectedCity, onChangeCity, allowedZones, itineraries, it
               <input
                 type="time"
                 value={time}
-                onChange={(e) => setTime(e.target.value)}
+                onChange={(e) => {
+                  setTime(e.target.value);
+                  setValidationError("");
+                }}
                 className="h-[44px] rounded-md border border-input bg-card px-3 text-sm text-foreground"
               />
             </div>
@@ -280,6 +304,11 @@ const RoutesPanel = ({ selectedCity, onChangeCity, allowedZones, itineraries, it
           >
             {itinerariesLoading ? "Buscando..." : "Buscar itinerarios"}
           </button>
+          {validationError && (
+            <p className="text-xs text-red-600 font-medium">
+              {validationError}
+            </p>
+          )}
 
             {/* Ranking de itinerarios disponibles ordenados por duración */}
             <div className="rounded-lg p-4 border border-border bg-card flex flex-col gap-3">
