@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Route as RouteIcon, Car, Footprints, Bike, BusFront, Sparkles, Bookmark } from "lucide-react";
+import { Route as RouteIcon, Car, Footprints, Bike, BusFront, Sparkles } from "lucide-react";
 
 // Modulos de transporte disponibles 
 // automático: busca los mejores itinerarios sin filtrar por transporte.
@@ -21,15 +21,16 @@ const MODE_LABELS = {
 
 /**
  * Panel lateral de itinerarios:
-  * permite elegir modos, fecha y hora
+  * permite elegir ciudad, modos, fecha y hora
   * lanza la búsqueda de itinerarios
-  * muestra el ranking o el detalle del itinerario seleccionado
  */
-const RoutesPanel = ({ selectedCity, onChangeCity, itineraries, itineraryLegs, itinerariesLoading, itinerariesError, onLoadItineraries, onSelectItinerary }) => {
+const RoutesPanel = ({ selectedCity, onChangeCity, allowedZones, itineraries, itineraryLegs, itinerariesLoading, itinerariesError, onLoadItineraries, onSelectItinerary, places, selectedPlaceIds, onChangeSelectedPlaceIds, onChangeRouteDate, }) => {
   const [modes, setModes] = useState(["good"]);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
-  const [selectedItineraryDetail, setSelectedItineraryDetail] = useState(null);
+  const [validationError, setValidationError] = useState("");
+
+  const NORMAL_MODES = ["drive", "walk", "bike", "drive_service"];
 
   // Selección de modos de transporte.
   const toggleMode = (modeId) => {
@@ -42,14 +43,67 @@ const RoutesPanel = ({ selectedCity, onChangeCity, itineraries, itineraryLegs, i
       // Si pulsa un modo normal y estaba "good", lo quita
       const withoutGood = prev.filter((m) => m !== "good");
       
+      let updated;
+
       // Si el modo ya estaba activo, lo desactiva.
       if (withoutGood.includes(modeId)) {
-        const updated = withoutGood.filter((m) => m !== modeId);
+        updated = withoutGood.filter((m) => m !== modeId);
         return updated.length > 0 ? updated : withoutGood;
       }
 
-      return [...withoutGood, modeId];
+      // Si no estaba activo, lo añade
+      updated = [...withoutGood, modeId];
+
+      // Si están los 4 modos normales activos, lo convertimos a "good"
+      const hasAllNormalModes = NORMAL_MODES.every((mode) =>
+        updated.includes(mode)
+      );
+
+      if (hasAllNormalModes) {
+        return ["good"];
+      }
+
+      return updated;
     });
+  };
+
+
+  // Lista completa de ciudades disponibles en la app
+  const ALL_CITIES = [
+    { value: "alicante", label: "Alicante" },
+    { value: "elche", label: "Elche" },
+    { value: "valencia", label: "Valencia" },
+    { value: "peñiscola", label: "Peñíscola" },
+  ];
+
+  // Ciudades que se mostrarán en el desplegable según lo contratado
+  const availableCities =
+    allowedZones?.includes("*")
+      ? ALL_CITIES
+      : ALL_CITIES.filter((city) =>
+          allowedZones?.some(
+            (zone) => zone.toLowerCase() === city.value.toLowerCase()
+          )
+        );
+  
+  const normalizeText = (text = "") =>
+  text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  // Lugares de la ciudad seleccionada
+  const cityPlaces = (places || []).filter((place) =>
+    normalizeText(place.name).includes(normalizeText(selectedCity))
+  );
+
+  //marcar o desmarcar lugar de ciudad
+  const togglePlaceSelection = (placeId) => {
+    if (selectedPlaceIds.includes(placeId)) {
+      onChangeSelectedPlaceIds(selectedPlaceIds.filter((id) => id !== placeId));
+    } else {
+      onChangeSelectedPlaceIds([...selectedPlaceIds, placeId]);
+    }
   };
 
   // Extrae las paradas del itinerario a partir del string "A → B → C"
@@ -100,19 +154,30 @@ const RoutesPanel = ({ selectedCity, onChangeCity, itineraries, itineraryLegs, i
     (a, b) => (a.total_time_min || 999999) - (b.total_time_min || 999999)
   );
 
-  // itinerario seleccionado, muestra los detalles
-  const detailLegs = selectedItineraryDetail
-    ? getLegsForItinerary(selectedItineraryDetail.itinerary_id)
-    : [];
-
   // Búsqueda solo si hay fecha y hora
   // No hay: botón desactivado
   const handleSearchItineraries = () => {
-    if (!date || !time) {
+    setValidationError("");
+
+    if (!selectedCity || !date || !time) {
+      setValidationError("Selecciona una ciudad, fecha y hora.");
       return;
     }
 
-    onLoadItineraries(date, time, modes);
+    if (selectedPlaceIds.length < 2) {
+      setValidationError("Selecciona al menos 2 lugares.");
+      return;
+    }
+
+    const now = new Date();
+    const selectedDateTime = new Date(`${date}T${time}`);
+
+    if (selectedDateTime < now) {
+      setValidationError("La fecha y hora seleccionadas no son válidas.");
+      return;
+    }
+
+    onLoadItineraries(date, time, modes, selectedPlaceIds);
   };
 
     // Panel de itinerarios: filtros, hora de salida y ranking de resultados
@@ -155,16 +220,46 @@ const RoutesPanel = ({ selectedCity, onChangeCity, itineraries, itineraryLegs, i
           </label>
           <select
             value={selectedCity}
-            onChange={(e) => onChangeCity(e.target.value)}
-            className="h-[44px] rounded-md border border-input bg-card pl-5 pr-1 text-sm text-foreground"          
+            onChange={(e) => {
+              onChangeCity(e.target.value);
+              onChangeSelectedPlaceIds([]); // Limpiar selección de lugares al cambiar de ciudad
+            }}
+            className="h-[48px] rounded-2xl border border-border bg-white px-4 pr-10 text-sm text-foreground shadow-sm transition-all 
+                      focus:outline-none focus:ring-2 focus:ring-azul/30 hover:border-azul/40"
           >
-            <option value="alicante">Alicante</option>
-            <option value="elche">Elche</option>
-            <option value="valencia">Valencia</option>
-            <option value="peñiscola">Peñíscola</option>          
+            <option value="" disabled>
+              Selecciona destino
+            </option>
+            
+            {availableCities.map((city) => (
+              <option key={city.value} value={city.value}>
+                {city.label}
+              </option>
+            ))}
           </select>
         </div>
       
+      {/* LUGARES DE LA CIUDAD */}
+      {selectedCity && cityPlaces.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold text-foreground uppercase tracking-wide">
+            Lugares
+          </label>
+
+          <div className="rounded-xl border border-border bg-card p-3 max-h-[180px] overflow-y-auto flex flex-col gap-2">
+            {cityPlaces.map((place) => (
+              <label key={place.place_id} className="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={selectedPlaceIds.includes(place.place_id)}
+                  onChange={() => togglePlaceSelection(place.place_id)}
+                />
+                <span>{place.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
         {/* Fecha */}
         <div className="flex gap-2">
           <div className="flex-1 flex flex-col gap-1">
@@ -174,7 +269,12 @@ const RoutesPanel = ({ selectedCity, onChangeCity, itineraries, itineraryLegs, i
             <input
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
+              onChange={(e) => {
+                setDate(e.target.value);
+                onChangeRouteDate?.(e.target.value);
+                setValidationError("");
+              }}
               className="h-[44px] rounded-md border border-input bg-card px-3 text-sm text-foreground"
             />
           </div>
@@ -188,7 +288,10 @@ const RoutesPanel = ({ selectedCity, onChangeCity, itineraries, itineraryLegs, i
               <input
                 type="time"
                 value={time}
-                onChange={(e) => setTime(e.target.value)}
+                onChange={(e) => {
+                  setTime(e.target.value);
+                  setValidationError("");
+                }}
                 className="h-[44px] rounded-md border border-input bg-card px-3 text-sm text-foreground"
               />
             </div>
@@ -197,108 +300,18 @@ const RoutesPanel = ({ selectedCity, onChangeCity, itineraries, itineraryLegs, i
           {/* BOTON BUSQUEDA */}
           <button
             onClick={handleSearchItineraries}
-            disabled={itinerariesLoading || !date || !time}
+            disabled={itinerariesLoading || !selectedCity || !date || !time}
             className="h-[44px] rounded-md bg-verde text-white text-sm font-medium hover:bg-verde-oscuro transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {itinerariesLoading ? "Buscando..." : "Buscar itinerarios"}
           </button>
+          {validationError && (
+            <p className="text-xs text-red-600 font-medium">
+              {validationError}
+            </p>
+          )}
 
-        
-          {/* ITINERARIO SELECCIONADO */}
-          {selectedItineraryDetail ? (
-            <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-4 shadow-sm">
-
-              {/* HEADER */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-7 h-7 min-w-[28px] min-h-[28px] rounded-full flex items-center justify-center text-xs font-semibold text-white bg-verde-oscuro">
-                    A
-                  </div>
-
-                  <div>
-                    {/* uiIndex para que el título del detalle coincida con el número del ranking */}
-                    <h4 className="text-base font-semibold text-foreground leading-tight">
-                      Itinerario {selectedItineraryDetail.uiIndex || 1}
-                    </h4>
-
-                    <div className="text-xs text-muted-foreground mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span>
-                        🕘 {(selectedItineraryDetail.start_datetime || "").slice(11, 16) || "--:--"} → {(selectedItineraryDetail.end_datetime || "").slice(11, 16) || "--:--"}
-                      </span>
-                      <span>
-                        ⏱ {Math.floor((selectedItineraryDetail.total_time_min || 0) / 60)} h 
-                        {Math.round((selectedItineraryDetail.total_time_min || 0) % 60)} min
-                      </span>
-                    </div>
-
-                    <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span>
-                        {Array.isArray(selectedItineraryDetail.modes_used) &&
-                          selectedItineraryDetail.modes_used.length > 0
-                            ? [...new Set(selectedItineraryDetail.modes_used)]
-                                .map((m) => MODE_LABELS[m] || m)
-                                .join(", ")
-                            : "Sin modo"}
-                      </span>
-                      <span>
-                        {getItineraryStops(selectedItineraryDetail).length} paradas
-                      </span>
-                      <span>
-                        {Math.round((selectedItineraryDetail.total_distance_m || 0) / 1000 * 10) / 10} km
-                      </span>
-                    </div>
-                  </div>  
-                </div>
-
-                 {/* Acciones del panel de detalle */}
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="w-9 h-9 rounded-full border border-border bg-card flex items-center justify-center hover:bg-secondary transition"
-                  >
-                    <Bookmark className="w-4 h-4 text-foreground" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedItineraryDetail(null)}
-                    className="text-muted-foreground hover:text-foreground text-lg leading-none px-1"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-
-              {/* LISTA DE PARADAS */}
-              <div className="flex flex-col gap-4 pt-3 border-t border-border">
-                {getItineraryStops(selectedItineraryDetail).map((stop, index) => (
-                  <div key={index} className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div className="w-5 h-5 min-w-[20px] min-h-[20px] rounded-full flex items-center justify-center text-[10px] font-semibold text-white mt-0.5 bg-azul">
-                        {String.fromCharCode(65 + index)}
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground leading-snug">
-                          {stop}
-                        </p>
-
-                        <p className="text-xs text-muted-foreground mt-1">
-                          ⏱ {formatDuration(detailLegs[index]?.cost_time_s)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="text-xs text-foreground whitespace-nowrap">
-                      {formatLegTime(detailLegs[index]?.visit_start_time)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-
-            /* Ranking de itinerarios disponibles ordenados por duración */
+            {/* Ranking de itinerarios disponibles ordenados por duración */}
             <div className="rounded-lg p-4 border border-border bg-card flex flex-col gap-3">
               <h4 className="text-xs font-bold uppercase">Ranking de itinerarios</h4>
 
@@ -314,7 +327,12 @@ const RoutesPanel = ({ selectedCity, onChangeCity, itineraries, itineraryLegs, i
                   const totalMinutes = Math.round(it.total_time_min || 0);
                   const hours = Math.floor(totalMinutes / 60);
                   const minutes = totalMinutes % 60;
-
+                  const firstStopName = getItineraryStops(it)[0];
+                  const firstPlace = (places || []).find(
+                    (p) => p.name?.toLowerCase().trim() === firstStopName?.toLowerCase().trim()
+                  );
+                  const imageUrl = firstPlace?.image_url  || firstPlace?.img || "/placeholder-place.jpg";
+                  
                   const durationText =
                     hours > 0 ? `${hours} h ${minutes} min` : `${minutes} min`;
 
@@ -335,11 +353,10 @@ const RoutesPanel = ({ selectedCity, onChangeCity, itineraries, itineraryLegs, i
                       key={it.itinerary_id || index}
                       type="button"
                       onClick={() => {
-                        setSelectedItineraryDetail({
+                        onSelectItinerary?.({
                           ...it,
                           uiIndex: index + 1
                         });
-                        onSelectItinerary?.(it);
                       }}
                       className={`w-full text-left rounded-xl border p-3 transition-all ${
                         index === 0
@@ -357,39 +374,41 @@ const RoutesPanel = ({ selectedCity, onChangeCity, itineraries, itineraryLegs, i
                           {index + 1}
                         </div>
 
+                        {/* Imagen del primer lugar del itinerario */}
+                        <img
+                          src={imageUrl}
+                          alt={firstStopName || `Itinerario ${index + 1}`}
+                          className="w-20 h-16 rounded-lg object-cover shrink-0 bg-muted"
+                          onError={(e) => {
+                            e.currentTarget.src = "/placeholder-place.jpg";
+                          }}
+                        />
+
                         {/* Resumen del itinerario */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <h5 className="text-sm font-semibold text-foreground truncate">
-                                Itinerario {index + 1}
-                              </h5>
+                          <h5 className="text-sm font-semibold text-foreground truncate">
+                            Itinerario {index + 1}
+                          </h5>
 
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {(it.start_datetime || "").slice(11, 16) || "--:--"} → {(it.end_datetime || "").slice(11, 16) || "--:--"}
-                              </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {(it.start_datetime || "").slice(11, 16) || "--:--"} →{" "}
+                            {(it.end_datetime || "").slice(11, 16) || "--:--"} · {durationText}
+                          </div>
 
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {durationText}
-                              </div>
-
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {modesText} · {stopsCount} paradas · {distanceKm} km
-                              </div>
-                            </div>
-
-                            <div className="text-muted-foreground text-lg leading-none shrink-0">
-                              ›
+                          <div className="text-xs text-muted-foreground mt-1 truncate">
+                              {modesText} · {stopsCount} paradas · {distanceKm} km
                             </div>
                           </div>
-                        </div>
+
+                          <div className="text-muted-foreground text-lg leading-none shrink-0">
+                            ›
+                          </div>
                       </div>
                     </button>
                   );
                 })}
               </div>
             </div>
-          )}
         </div>
       </>  
       );
