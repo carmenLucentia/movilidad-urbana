@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useApi } from "@/hooks/useApi";
@@ -22,6 +22,7 @@ const AforosMap = ({ city, date, hour }) => {
   const geoJsonLayerRef = useRef(null);
   const { fetchApi } = useApi();
   const alertMarkersRef = useRef(null);
+  const [error, setError] = useState(null);
 
   // 1. Crear mapa 
   useEffect(() => {
@@ -44,8 +45,16 @@ const AforosMap = ({ city, date, hour }) => {
     const loadDistricts = async () => {
         if (!city || !date || !hour || !mapInstanceRef.current) return;
 
-      // llamada a api para cargar geojson de distritos (según ciudad)
-      const geojson = await fetchApi(`/distritos/aforos?city=${city}&date=${date}&hour=${hour}`);
+      // llamada a api para cargar geojson de distritos (según ciudad, dia y hora)
+      const geojson = await fetchApi(`/distritos/aforos?city=${city}&date=${date}&hour=${hour}`, {}, true);
+
+      // control de error de backend
+      if (geojson.error) {
+        setError(geojson.message);
+        return;
+      } else {
+        setError(null);
+      }
 
       //elimina capa anterior (si existe) antes de añadir la nueva
       if (geoJsonLayerRef.current) {
@@ -106,7 +115,19 @@ const AforosMap = ({ city, date, hour }) => {
     loadDistricts();
   }, [city, date, hour, fetchApi]);
 
-  return <div ref={mapRef} className="w-full h-full rounded-xl" />;
+  return (
+    <div className="relative w-full h-full">
+      {error && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000]">
+          <div className="bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-semibold">
+            ⚠️ {error}
+          </div>
+        </div>
+      )}
+
+      <div ref={mapRef} className="w-full h-full rounded-xl" />
+    </div>
+  );
 };
 
 export default AforosMap;
