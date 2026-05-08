@@ -1,6 +1,7 @@
 import { MapPin, CalendarDays, Clock, AlertTriangle, Users, TrendingUp } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AforosMap from "@/components/AforosMap";
+import { useApi } from "@/hooks/useApi";
 
 // Datos ficticios para las tablas
 const aforosTiempoReal = [
@@ -8,6 +9,7 @@ const aforosTiempoReal = [
   { distrito: "Playa", nivel: "Muy Alto", hora: "15:00" },
   { distrito: "Montaña", nivel: "Medio", hora: "15:00" },
 ];
+
 const aforosPrediccion = [
   { distrito: "Centro", nivel: "Muy Alto", hora: "17:00" },
   { distrito: "Playa", nivel: "Alto", hora: "17:00" },
@@ -30,8 +32,17 @@ const getNivelClass = (nivel) => {
   }
 };
 
+const ALL_CITIES = [
+  { value: "alicante", label: "Alicante" },
+  { value: "valencia", label: "Valencia" },
+  { value: "elche", label: "Elche" },
+  { value: "peniscola", label: "Peñíscola" },
+];
+
 // Estados de los filtros seleccionados (ciudad, fecha, hora) y el botón para aplicar los filtros y mostrar el mapa con los datos correspondientes
 const AforosPanel = () => {
+  const { fetchApi } = useApi();
+  const [availableCities, setAvailableCities] = useState([]);
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedHour, setSelectedHour] = useState("");
@@ -42,6 +53,30 @@ const AforosPanel = () => {
     date: "",
     hour: "",
   });
+
+  useEffect(() => {
+  const loadAccess = async () => {
+    try {
+      const access = await fetchApi("/me/access", {}, true);
+      const allowedDistritos = access.allowedDistritos || [];
+
+      if (allowedDistritos.includes("*")) {
+        setAvailableCities(ALL_CITIES);
+      } else {
+        setAvailableCities(
+          ALL_CITIES.filter((city) =>
+            allowedDistritos.includes(city.value)
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error cargando ciudades de aforos:", error);
+      setAvailableCities([]);
+    }
+  };
+
+  loadAccess();
+}, [fetchApi]);
 
   // boton "ver aforos"
   const handleViewAforos = () => {
@@ -81,10 +116,11 @@ const AforosPanel = () => {
               className="w-full bg-transparent font-medium text-sm outline-none cursor-pointer text-[#0E448F]"
             >
               <option value="">Selecciona provincia</option>
-              <option value="alicante">Alicante</option>
-              <option value="valencia">Valencia</option>
-              <option value="elche">Elche</option>
-              <option value="peniscola">Peñiscola</option>
+              {availableCities.map((city) => (
+                <option key={city.value} value={city.value}>
+                  {city.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
